@@ -107,7 +107,8 @@ type SakuraSleepLog = {
 
 type BranchState = { energy: Energy; mind: Mind; need: Need };
 type SignCheck = { id: string; date: string; checked: SignId[]; note: string; createdAt: string };
-type LibraryEntry = { id: string; title: string; body: string; tag: string; custom?: boolean };
+type LibraryMode = "emergency" | "night" | "morning" | "uneasy" | "tired";
+type LibraryEntry = { id: string; title: string; body: string; tag: string; favorite?: boolean; modes?: LibraryMode[]; custom?: boolean };
 type RouletteAction = { id: string; text: string; category: string; favorite?: boolean; custom?: boolean };
 type RouletteHistory = { id: string; text: string; status: "drawn" | "done" | "skipped"; createdAt: string };
 
@@ -232,6 +233,8 @@ const triggerTimingLabel = Object.fromEntries(triggerTimingOptions) as Record<Tr
 const triggerSocialLabel = Object.fromEntries(triggerSocialOptions) as Record<TriggerSocial, string>;
 const notNowUntilOptions: Array<[NotNowItem["until"], string]> = [["today", "今日は保留"], ["tonight", "夜だけ保留"], ["tomorrow", "明日見直す"], ["later", "しばらく保留"]];
 const notNowUntilLabel = Object.fromEntries(notNowUntilOptions) as Record<NotNowItem["until"], string>;
+const libraryModeOptions: Array<[LibraryMode, string]> = [["emergency", "緊急用"], ["night", "夜用"], ["morning", "朝用"], ["uneasy", "不安"], ["tired", "疲れ"]];
+const libraryModeLabel = Object.fromEntries(libraryModeOptions) as Record<LibraryMode, string>;
 const sleepModeOptions: Array<[SleepMode, string]> = [["passedOut", "気絶型"], ["futon", "布団で寝た"], ["broken", "途中で途切れた"], ["planned", "予定して寝た"]];
 const sleepPlaceOptions: Array<[SleepPlace, string]> = [["futon", "布団"], ["chair", "座椅子"], ["floor", "床・その場"], ["other", "その他"]];
 const flashbackOptions: Array<[FlashbackStatus, string]> = [["none", "なし"], ["little", "少し"], ["yes", "あり"]];
@@ -255,9 +258,12 @@ const signOptions: Array<{ id: SignId; label: string; guide: string }> = [
 ];
 
 const defaultLibrary: LibraryEntry[] = [
-  { id: "enough", title: "今日はここまでで十分", body: "できた量ではなく、続けようとしていることを数えていい。", tag: "休み" },
-  { id: "slow", title: "急がなくていい", body: "今の速度を基準にして、呼吸と水分と安全な場所を先にする。", tag: "落ち着き" },
-  { id: "one", title: "次は1つだけ", body: "全部を整えなくていい。1つ終えたら、その時点で見直せばいい。", tag: "行動" },
+  { id: "enough", title: "今日はここまでで十分", body: "できた量ではなく、続けようとしていることを数えていい。", tag: "休み", favorite: true, modes: ["tired", "night"] },
+  { id: "slow", title: "急がなくていい", body: "今の速度を基準にして、呼吸と水分と安全な場所を先にする。", tag: "落ち着き", modes: ["emergency", "uneasy", "night"] },
+  { id: "one", title: "次は1つだけ", body: "全部を整えなくていい。1つ終えたら、その時点で見直せばいい。", tag: "行動", modes: ["morning", "tired"] },
+  { id: "safe", title: "今は安全を先にする", body: "判断や返信よりも、体を置ける場所、飲み物、明るさを整えることを優先していい。", tag: "緊急", favorite: true, modes: ["emergency", "uneasy"] },
+  { id: "night", title: "夜は結論を出さない", body: "夜の気持ちは強く見えることがある。メモだけ残して、結論は明日の自分に渡していい。", tag: "夜", modes: ["night", "uneasy"] },
+  { id: "morning", title: "朝は小さく始める", body: "起きた瞬間に全部を決めなくていい。水分、光、ひとつの用事からで十分。", tag: "朝", modes: ["morning", "tired"] },
 ];
 
 const defaultRouletteActions: RouletteAction[] = [
@@ -1058,21 +1064,38 @@ function ComfortLibrary() {
   const [body, setBody] = useState("");
   const [tag, setTag] = useState("自分用");
   const [filter, setFilter] = useState("すべて");
+  const [modeFilter, setModeFilter] = useState<LibraryMode | "all" | "favorite">("all");
+  const [selectedModes, setSelectedModes] = useState<LibraryMode[]>(["uneasy"]);
   useEffect(() => window.localStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify(customEntries)), [customEntries]);
   const entries = [...customEntries, ...defaultLibrary];
   const tags = ["すべて", ...Array.from(new Set(entries.map((entry) => entry.tag)))];
-  const visible = filter === "すべて" ? entries : entries.filter((entry) => entry.tag === filter);
+  const visible = entries
+    .filter((entry) => filter === "すべて" || entry.tag === filter)
+    .filter((entry) => modeFilter === "all" || (modeFilter === "favorite" ? entry.favorite : entry.modes?.includes(modeFilter)));
 
   function addEntry(event: FormEvent) {
     event.preventDefault();
     if (!title.trim() || !body.trim()) return;
-    setCustomEntries((current) => [{ id: createId("book"), title: title.trim(), body: body.trim(), tag: tag.trim() || "自分用", custom: true }, ...current]);
+    setCustomEntries((current) => [{ id: createId("book"), title: title.trim(), body: body.trim(), tag: tag.trim() || "自分用", modes: selectedModes, custom: true }, ...current]);
     setTitle("");
     setBody("");
+    setSelectedModes(["uneasy"]);
+  }
+
+  function updateCustomEntry(id: string, patch: Partial<LibraryEntry>) {
+    setCustomEntries((current) => current.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
+  }
+
+  function toggleSelectedMode(mode: LibraryMode) {
+    setSelectedModes((current) => (current.includes(mode) ? current.filter((item) => item !== mode) : [...current, mode]));
   }
 
   return (
     <section className="panel">
+      <div className="result-box">
+        <strong>今の状態から探す</strong>
+        <p>緊急、夜、朝、不安、疲れ。今の状態に近い入口から安心文を探せます。</p>
+      </div>
       <form className="library-form" onSubmit={addEntry}>
         <label className="field">
           <span>タイトル</span>
@@ -1083,11 +1106,34 @@ function ComfortLibrary() {
           <input value={tag} onChange={(event) => setTag(event.target.value)} />
         </label>
         <TextArea label="本文" value={body} onChange={setBody} />
+        <fieldset className="branch-group">
+          <legend>使う場面</legend>
+          <div className="segmented wrap">
+            {libraryModeOptions.map(([mode, label]) => (
+              <button className={selectedModes.includes(mode) ? "active" : ""} key={mode} type="button" onClick={() => toggleSelectedMode(mode)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
         <button className="primary-button full" type="submit">
           <Plus size={18} />
           追加
         </button>
       </form>
+      <div className="segmented wrap" aria-label="今の状態から探す">
+        <button className={modeFilter === "all" ? "active" : ""} type="button" onClick={() => setModeFilter("all")}>
+          すべて
+        </button>
+        <button className={modeFilter === "favorite" ? "active" : ""} type="button" onClick={() => setModeFilter("favorite")}>
+          お気に入り
+        </button>
+        {libraryModeOptions.map(([mode, label]) => (
+          <button className={modeFilter === mode ? "active" : ""} key={mode} type="button" onClick={() => setModeFilter(mode)}>
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="segmented wrap">
         {tags.map((item) => (
           <button key={item} className={filter === item ? "active" : ""} type="button" onClick={() => setFilter(item)}>
@@ -1098,8 +1144,24 @@ function ComfortLibrary() {
       <div className="library-grid">
         {visible.map((entry) => (
           <article className="library-card" key={entry.id}>
-            <span>{entry.tag}</span>
+            <div className="library-card-head">
+              <span>{entry.tag}</span>
+              {entry.custom ? (
+                <button className={entry.favorite ? "tiny active" : "tiny"} type="button" onClick={() => updateCustomEntry(entry.id, { favorite: !entry.favorite })} aria-label="お気に入り">
+                  ★
+                </button>
+              ) : entry.favorite ? (
+                <span className="favorite-mark">★</span>
+              ) : null}
+            </div>
             <strong>{entry.title}</strong>
+            {entry.modes?.length ? (
+              <div className="trigger-tags">
+                {entry.modes.map((mode) => (
+                  <span key={mode}>{libraryModeLabel[mode]}</span>
+                ))}
+              </div>
+            ) : null}
             <p>{entry.body}</p>
             {entry.custom ? (
               <button className="text-button" type="button" onClick={() => setCustomEntries((current) => current.filter((item) => item.id !== entry.id))}>

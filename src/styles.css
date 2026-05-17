@@ -599,6 +599,18 @@ select:focus {
   font-weight: 850;
 }
 
+.library-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.favorite-mark,
+.tiny.active {
+  color: #b07726;
+}
+
 .roulette-box {
   display: grid;
   gap: 10px;
