@@ -356,7 +356,7 @@ export function App() {
             {view === "roulette" && <RouletteApp />}
             {view === "shopping" && <ShoppingListApp />}
             {view === "visitMemo" && <VisitMemoApp />}
-            {view === "
+            {view === "mediaLog" && <MediaLogApp />}
           </>
         )}
       </section>
