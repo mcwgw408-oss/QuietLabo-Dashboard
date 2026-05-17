@@ -1,5 +1,6 @@
-const CACHE_NAME = "shopping-list-pwa-v1";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/pwa-icon.svg"];
+const BASE_URL = "/QuietLabo-Dashboard/";
+const CACHE_NAME = "quietlabo-dashboard-pwa-v2";
+const APP_SHELL = [BASE_URL, `${BASE_URL}manifest.webmanifest`, `${BASE_URL}pwa-icon.svg`];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

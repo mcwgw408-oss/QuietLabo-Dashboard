@@ -1,16 +1,16 @@
 {
-  "name": "読書・映画ログ",
-  "short_name": "読書映画ログ",
-  "description": "スマホで読書ログと映画ログを残せる日本語UIのPWAミニアプリ",
-  "start_url": "/",
-  "scope": "/",
+  "name": "QuietLabo Dashboard",
+  "short_name": "QuietLabo",
+  "description": "スマホで生活ログを残せる日本語UIのPWAミニアプリ集",
+  "start_url": "/QuietLabo-Dashboard/",
+  "scope": "/QuietLabo-Dashboard/",
   "display": "standalone",
   "background_color": "#f7f3eb",
   "theme_color": "#45745f",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/pwa-icon.svg",
+      "src": "/QuietLabo-Dashboard/pwa-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
