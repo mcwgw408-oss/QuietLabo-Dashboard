@@ -462,7 +462,8 @@ select:focus {
 .log-card,
 .guide-card,
 .history-card,
-.library-card {
+.library-card,
+.recovery-trigger-card {
   display: grid;
   gap: 7px;
   padding: 12px;
@@ -482,9 +483,43 @@ select:focus {
 .log-card p,
 .history-card p,
 .guide-card p,
-.library-card p {
+.library-card p,
+.recovery-trigger-card p {
   color: #536158;
   line-height: 1.55;
+}
+
+.trigger-stats {
+  margin-bottom: 0;
+}
+
+.recovery-trigger-card {
+  border: 1px solid rgba(43, 57, 50, 0.12);
+  border-radius: 8px;
+  background: #fffefa;
+}
+
+.recovery-trigger-card p strong {
+  display: block;
+  margin-bottom: 3px;
+  color: #2f4337;
+  font-size: 0.8rem;
+}
+
+.trigger-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.trigger-tags span {
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #516058;
+  background: #f2eee6;
+  font-size: 0.76rem;
+  font-weight: 850;
 }
 
 .log-head {

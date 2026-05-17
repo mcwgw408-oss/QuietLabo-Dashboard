@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 
-type View = "home" | "tasks" | "recovery" | "state" | "signs" | "library" | "roulette" | "shopping" | "visitMemo" | "mediaLog";
+type View = "home" | "tasks" | "recovery" | "triggerDb" | "state" | "signs" | "library" | "roulette" | "shopping" | "visitMemo" | "mediaLog";
 type TaskStatus = "todo" | "doing" | "done";
 type TaskPriority = "low" | "medium" | "high";
 type MoodStatus = "stable" | "uneasy" | "tired" | "slipping" | "recovering";
@@ -36,6 +36,10 @@ type Mind = "calm" | "uneasy" | "overloaded";
 type Need = "rest" | "light" | "connect";
 type SignId = "sleep" | "body" | "thoughts" | "noise" | "messages" | "food" | "irritation" | "isolation";
 type CategoryId = "staple" | "side" | "drink" | "daily" | "heavy" | "treat";
+type TriggerSpeed = "fast" | "medium" | "slow";
+type TriggerDuration = "short" | "medium" | "long";
+type TriggerTiming = "morning" | "day" | "night" | "anytime";
+type TriggerSocial = "solo" | "connect" | "both";
 
 type Task = {
   id: string;
@@ -57,6 +61,19 @@ type RecoveryLog = {
   doneOneThing: string;
   recoveryTrigger: string;
   todayWord: string;
+  createdAt: string;
+};
+
+type RecoveryTriggerEntry = {
+  id: string;
+  name: string;
+  workedNote: string;
+  didntWorkNote: string;
+  speed: TriggerSpeed;
+  duration: TriggerDuration;
+  timing: TriggerTiming;
+  social: TriggerSocial;
+  memo: string;
   createdAt: string;
 };
 
@@ -135,6 +152,7 @@ type SimpleMediaLog = {
 const TASK_STORAGE_KEY = "notion-simple-task-manager-v2";
 const LEGACY_TASK_STORAGE_KEY = "notion-simple-task-manager";
 const RECOVERY_STORAGE_KEY = "notion-recovery-log-v1";
+const RECOVERY_TRIGGER_STORAGE_KEY = "recovery-trigger-db-v1";
 const BRANCH_STORAGE_KEY = "state-branch-ui-v1";
 const SIGNS_STORAGE_KEY = "early-sign-checks-v1";
 const LIBRARY_STORAGE_KEY = "comfort-library-custom-v1";
@@ -151,6 +169,7 @@ const today = toDateInputValue(new Date());
 const menuItems: Array<{ view: Exclude<View, "home">; title: string; description: string; icon: typeof Home }> = [
   { view: "tasks", title: "タスク管理", description: "やること、期限、優先度を整理", icon: ListChecks },
   { view: "recovery", title: "回復ログ", description: "体調と気持ちを短く記録", icon: HeartPulse },
+  { view: "triggerDb", title: "回復トリガーDB", description: "効いた回復策の条件をためる", icon: Clipboard },
   { view: "state", title: "今の状態 分岐UI", description: "今の状態から次の一手を選ぶ", icon: Sparkles },
   { view: "signs", title: "崩れ始めサイン チェックUI", description: "早めのサインを拾って守りを固める", icon: ClipboardCheck },
   { view: "library", title: "安心文庫ビューア", description: "安心文をタグで保存して読み返す", icon: BookOpen },
@@ -171,6 +190,14 @@ const moodOptions: Array<{ value: MoodStatus; label: string }> = [
 const moodLabel = Object.fromEntries(moodOptions.map((item) => [item.value, item.label])) as Record<MoodStatus, string>;
 const priorityLabel: Record<TaskPriority, string> = { low: "低", medium: "中", high: "高" };
 const statusLabel: Record<TaskStatus, string> = { todo: "未着手", doing: "進行中", done: "完了" };
+const triggerSpeedOptions: Array<[TriggerSpeed, string]> = [["fast", "即効性あり"], ["medium", "少し後で効く"], ["slow", "じわじわ"]];
+const triggerDurationOptions: Array<[TriggerDuration, string]> = [["short", "短め"], ["medium", "半日くらい"], ["long", "長く続く"]];
+const triggerTimingOptions: Array<[TriggerTiming, string]> = [["morning", "朝向け"], ["day", "日中向け"], ["night", "夜向け"], ["anytime", "いつでも"]];
+const triggerSocialOptions: Array<[TriggerSocial, string]> = [["solo", "一人向け"], ["connect", "つながる系"], ["both", "どちらも"]];
+const triggerSpeedLabel = Object.fromEntries(triggerSpeedOptions) as Record<TriggerSpeed, string>;
+const triggerDurationLabel = Object.fromEntries(triggerDurationOptions) as Record<TriggerDuration, string>;
+const triggerTimingLabel = Object.fromEntries(triggerTimingOptions) as Record<TriggerTiming, string>;
+const triggerSocialLabel = Object.fromEntries(triggerSocialOptions) as Record<TriggerSocial, string>;
 
 const signOptions: Array<{ id: SignId; label: string; guide: string }> = [
   { id: "sleep", label: "眠りが浅い", guide: "寝る前の刺激を減らして、予定を詰めすぎない。" },
@@ -328,7 +355,12 @@ export function App() {
     <main className="app-shell">
       <section className="app-frame">
         <header className="topbar">
-          <button className="home-button" type="button" onClick={() => setView(view === "home" ? "shopping" : "home")} aria-label="ホームへ戻る">
+          <button
+            className="home-button"
+            type="button"
+            onClick={() => setView(view === "home" ? "shopping" : "home")}
+            aria-label="ホームへ戻る"
+          >
             {view === "home" ? <ShoppingBasket size={19} /> : <ArrowLeft size={19} />}
           </button>
           <div>
@@ -350,6 +382,7 @@ export function App() {
             </nav>
             {view === "tasks" && <TaskManager />}
             {view === "recovery" && <RecoveryLogApp />}
+            {view === "triggerDb" && <RecoveryTriggerDbApp />}
             {view === "state" && <StateBranchUi />}
             {view === "signs" && <SignsCheckUi />}
             {view === "library" && <ComfortLibrary />}
@@ -523,6 +556,148 @@ function RecoveryLogApp() {
       </form>
       <div className="stack">
         {logs.length === 0 ? <Empty text="まだログはありません。" /> : logs.map((log) => <LogCard key={log.id} log={log} onDelete={() => setLogs((current) => current.filter((item) => item.id !== log.id))} />)}
+      </div>
+    </section>
+  );
+}
+
+function RecoveryTriggerDbApp() {
+  const [entries, setEntries] = useState<RecoveryTriggerEntry[]>(readStorage<RecoveryTriggerEntry[]>(RECOVERY_TRIGGER_STORAGE_KEY, []));
+  const [name, setName] = useState("");
+  const [workedNote, setWorkedNote] = useState("");
+  const [didntWorkNote, setDidntWorkNote] = useState("");
+  const [speed, setSpeed] = useState<TriggerSpeed>("fast");
+  const [duration, setDuration] = useState<TriggerDuration>("medium");
+  const [timing, setTiming] = useState<TriggerTiming>("anytime");
+  const [social, setSocial] = useState<TriggerSocial>("solo");
+  const [memo, setMemo] = useState("");
+  const [timingFilter, setTimingFilter] = useState<TriggerTiming | "all">("all");
+  const [socialFilter, setSocialFilter] = useState<TriggerSocial | "all">("all");
+
+  useEffect(() => window.localStorage.setItem(RECOVERY_TRIGGER_STORAGE_KEY, JSON.stringify(entries)), [entries]);
+
+  const visibleEntries = entries
+    .filter((entry) => timingFilter === "all" || entry.timing === timingFilter)
+    .filter((entry) => socialFilter === "all" || entry.social === socialFilter)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  function addEntry(event: FormEvent) {
+    event.preventDefault();
+    if (!name.trim() && !workedNote.trim()) return;
+    setEntries((current) => [
+      {
+        id: createId("recovery-trigger"),
+        name: name.trim() || "名前なしの回復トリガー",
+        workedNote: workedNote.trim(),
+        didntWorkNote: didntWorkNote.trim(),
+        speed,
+        duration,
+        timing,
+        social,
+        memo: memo.trim(),
+        createdAt: new Date().toISOString(),
+      },
+      ...current,
+    ]);
+    setName("");
+    setWorkedNote("");
+    setDidntWorkNote("");
+    setSpeed("fast");
+    setDuration("medium");
+    setTiming("anytime");
+    setSocial("solo");
+    setMemo("");
+  }
+
+  return (
+    <section className="panel two-column">
+      <form className="stack" onSubmit={addEntry}>
+        <label className="field">
+          <span>トリガー名</span>
+          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="例: 10分散歩 / 温かい飲み物 / LINEする" />
+        </label>
+        <TextArea label="効いたこと" value={workedNote} onChange={setWorkedNote} />
+        <TextArea label="効かなかったこと" value={didntWorkNote} onChange={setDidntWorkNote} />
+        <BranchGroup label="即効性" value={speed} options={triggerSpeedOptions} onChange={setSpeed} />
+        <BranchGroup label="持続性" value={duration} options={triggerDurationOptions} onChange={setDuration} />
+        <BranchGroup label="向いている時間帯" value={timing} options={triggerTimingOptions} onChange={setTiming} />
+        <BranchGroup label="使う場面" value={social} options={triggerSocialOptions} onChange={setSocial} />
+        <TextArea label="補足メモ" value={memo} onChange={setMemo} />
+        <button className="primary-button full" type="submit">
+          <Plus size={18} />
+          DBに追加
+        </button>
+      </form>
+
+      <div className="stack">
+        <section className="mini-stats trigger-stats">
+          <Stat label="登録数" value={`${entries.length}件`} />
+          <Stat label="即効性あり" value={`${entries.filter((entry) => entry.speed === "fast").length}件`} />
+          <Stat label="夜向け" value={`${entries.filter((entry) => entry.timing === "night").length}件`} />
+        </section>
+
+        <div className="segmented wrap" aria-label="時間帯で絞り込み">
+          <button className={timingFilter === "all" ? "active" : ""} type="button" onClick={() => setTimingFilter("all")}>
+            全時間帯
+          </button>
+          {triggerTimingOptions.map(([value, label]) => (
+            <button className={timingFilter === value ? "active" : ""} key={value} type="button" onClick={() => setTimingFilter(value)}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="segmented wrap" aria-label="場面で絞り込み">
+          <button className={socialFilter === "all" ? "active" : ""} type="button" onClick={() => setSocialFilter("all")}>
+            全場面
+          </button>
+          {triggerSocialOptions.map(([value, label]) => (
+            <button className={socialFilter === value ? "active" : ""} key={value} type="button" onClick={() => setSocialFilter(value)}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="stack">
+          {visibleEntries.length === 0 ? (
+            <Empty text="まだ回復トリガーはありません。" />
+          ) : (
+            visibleEntries.map((entry) => (
+              <article className="recovery-trigger-card" key={entry.id}>
+                <div className="log-head">
+                  <strong>{entry.name}</strong>
+                  <button className="icon-button danger" type="button" onClick={() => setEntries((current) => current.filter((item) => item.id !== entry.id))} aria-label="削除">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <div className="trigger-tags">
+                  <span>{triggerSpeedLabel[entry.speed]}</span>
+                  <span>{triggerDurationLabel[entry.duration]}</span>
+                  <span>{triggerTimingLabel[entry.timing]}</span>
+                  <span>{triggerSocialLabel[entry.social]}</span>
+                </div>
+                {entry.workedNote ? (
+                  <p>
+                    <strong>効いたこと</strong>
+                    {entry.workedNote}
+                  </p>
+                ) : null}
+                {entry.didntWorkNote ? (
+                  <p>
+                    <strong>効かなかったこと</strong>
+                    {entry.didntWorkNote}
+                  </p>
+                ) : null}
+                {entry.memo ? (
+                  <p>
+                    <strong>メモ</strong>
+                    {entry.memo}
+                  </p>
+                ) : null}
+              </article>
+            ))
+          )}
+        </div>
       </div>
     </section>
   );
