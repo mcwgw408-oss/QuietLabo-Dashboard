@@ -14,6 +14,7 @@ import {
   Home,
   ListChecks,
   Milk,
+  Moon,
   NotebookPen,
   PackagePlus,
   Plus,
@@ -27,7 +28,7 @@ import {
 } from "lucide-react";
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 
-type View = "home" | "tasks" | "recovery" | "triggerDb" | "notNow" | "state" | "signs" | "library" | "roulette" | "shopping" | "visitMemo" | "mediaLog";
+type View = "home" | "tasks" | "recovery" | "triggerDb" | "notNow" | "sakuraSleep" | "state" | "signs" | "library" | "roulette" | "shopping" | "visitMemo" | "mediaLog";
 type TaskStatus = "todo" | "doing" | "done";
 type TaskPriority = "low" | "medium" | "high";
 type MoodStatus = "stable" | "uneasy" | "tired" | "slipping" | "recovering";
@@ -40,6 +41,11 @@ type TriggerSpeed = "fast" | "medium" | "slow";
 type TriggerDuration = "short" | "medium" | "long";
 type TriggerTiming = "morning" | "day" | "night" | "anytime";
 type TriggerSocial = "solo" | "connect" | "both";
+type SleepMode = "passedOut" | "futon" | "broken" | "planned";
+type SleepPlace = "futon" | "chair" | "floor" | "other";
+type FlashbackStatus = "none" | "little" | "yes";
+type WakeFeeling = "heavy" | "blank" | "okay" | "clear";
+type SafetyFeeling = "low" | "middle" | "high";
 
 type Task = {
   id: string;
@@ -84,6 +90,18 @@ type NotNowItem = {
   alternative: string;
   until: "today" | "tonight" | "tomorrow" | "later";
   paused: boolean;
+  createdAt: string;
+};
+
+type SakuraSleepLog = {
+  id: string;
+  date: string;
+  mode: SleepMode;
+  place: SleepPlace;
+  flashback: FlashbackStatus;
+  wakeFeeling: WakeFeeling;
+  safety: SafetyFeeling;
+  memo: string;
   createdAt: string;
 };
 
@@ -164,6 +182,7 @@ const LEGACY_TASK_STORAGE_KEY = "notion-simple-task-manager";
 const RECOVERY_STORAGE_KEY = "notion-recovery-log-v1";
 const RECOVERY_TRIGGER_STORAGE_KEY = "recovery-trigger-db-v1";
 const NOT_NOW_STORAGE_KEY = "not-now-list-v1";
+const SAKURA_SLEEP_STORAGE_KEY = "sakura-sleep-log-v1";
 const BRANCH_STORAGE_KEY = "state-branch-ui-v1";
 const SIGNS_STORAGE_KEY = "early-sign-checks-v1";
 const LIBRARY_STORAGE_KEY = "comfort-library-custom-v1";
@@ -182,6 +201,7 @@ const menuItems: Array<{ view: Exclude<View, "home">; title: string; description
   { view: "recovery", title: "回復ログ", description: "体調と気持ちを短く記録", icon: HeartPulse },
   { view: "triggerDb", title: "回復トリガーDB", description: "効いた回復策の条件をためる", icon: Clipboard },
   { view: "notNow", title: "今はやらないリスト", description: "禁止ではなく、今日は保留にする", icon: ClipboardCheck },
+  { view: "sakuraSleep", title: "睡眠ログ さくら版", description: "寝方、場所、起床感、安心感を残す", icon: Moon },
   { view: "state", title: "今の状態 分岐UI", description: "今の状態から次の一手を選ぶ", icon: Sparkles },
   { view: "signs", title: "崩れ始めサイン チェックUI", description: "早めのサインを拾って守りを固める", icon: ClipboardCheck },
   { view: "library", title: "安心文庫ビューア", description: "安心文をタグで保存して読み返す", icon: BookOpen },
@@ -212,6 +232,16 @@ const triggerTimingLabel = Object.fromEntries(triggerTimingOptions) as Record<Tr
 const triggerSocialLabel = Object.fromEntries(triggerSocialOptions) as Record<TriggerSocial, string>;
 const notNowUntilOptions: Array<[NotNowItem["until"], string]> = [["today", "今日は保留"], ["tonight", "夜だけ保留"], ["tomorrow", "明日見直す"], ["later", "しばらく保留"]];
 const notNowUntilLabel = Object.fromEntries(notNowUntilOptions) as Record<NotNowItem["until"], string>;
+const sleepModeOptions: Array<[SleepMode, string]> = [["passedOut", "気絶型"], ["futon", "布団で寝た"], ["broken", "途中で途切れた"], ["planned", "予定して寝た"]];
+const sleepPlaceOptions: Array<[SleepPlace, string]> = [["futon", "布団"], ["chair", "座椅子"], ["floor", "床・その場"], ["other", "その他"]];
+const flashbackOptions: Array<[FlashbackStatus, string]> = [["none", "なし"], ["little", "少し"], ["yes", "あり"]];
+const wakeFeelingOptions: Array<[WakeFeeling, string]> = [["heavy", "重い"], ["blank", "ぼんやり"], ["okay", "まあまあ"], ["clear", "すっきり"]];
+const safetyFeelingOptions: Array<[SafetyFeeling, string]> = [["low", "安心少なめ"], ["middle", "少し安心"], ["high", "安心できた"]];
+const sleepModeLabel = Object.fromEntries(sleepModeOptions) as Record<SleepMode, string>;
+const sleepPlaceLabel = Object.fromEntries(sleepPlaceOptions) as Record<SleepPlace, string>;
+const flashbackLabel = Object.fromEntries(flashbackOptions) as Record<FlashbackStatus, string>;
+const wakeFeelingLabel = Object.fromEntries(wakeFeelingOptions) as Record<WakeFeeling, string>;
+const safetyFeelingLabel = Object.fromEntries(safetyFeelingOptions) as Record<SafetyFeeling, string>;
 
 const signOptions: Array<{ id: SignId; label: string; guide: string }> = [
   { id: "sleep", label: "眠りが浅い", guide: "寝る前の刺激を減らして、予定を詰めすぎない。" },
@@ -398,6 +428,7 @@ export function App() {
             {view === "recovery" && <RecoveryLogApp />}
             {view === "triggerDb" && <RecoveryTriggerDbApp />}
             {view === "notNow" && <NotNowListApp />}
+            {view === "sakuraSleep" && <SakuraSleepLogApp />}
             {view === "state" && <StateBranchUi />}
             {view === "signs" && <SignsCheckUi />}
             {view === "library" && <ComfortLibrary />}
@@ -832,6 +863,110 @@ function NotNowListApp() {
             {pausedItems.map(renderItem)}
           </section>
         ) : null}
+      </div>
+    </section>
+  );
+}
+
+function SakuraSleepLogApp() {
+  const [logs, setLogs] = useState<SakuraSleepLog[]>(readStorage<SakuraSleepLog[]>(SAKURA_SLEEP_STORAGE_KEY, []));
+  const [date, setDate] = useState(today);
+  const [mode, setMode] = useState<SleepMode>("passedOut");
+  const [place, setPlace] = useState<SleepPlace>("futon");
+  const [flashback, setFlashback] = useState<FlashbackStatus>("none");
+  const [wakeFeeling, setWakeFeeling] = useState<WakeFeeling>("blank");
+  const [safety, setSafety] = useState<SafetyFeeling>("middle");
+  const [memo, setMemo] = useState("");
+
+  useEffect(() => window.localStorage.setItem(SAKURA_SLEEP_STORAGE_KEY, JSON.stringify(logs)), [logs]);
+
+  const sortedLogs = [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  const passedOutCount = logs.filter((log) => log.mode === "passedOut").length;
+  const flashbackCount = logs.filter((log) => log.flashback !== "none").length;
+  const safeCount = logs.filter((log) => log.safety === "high").length;
+
+  function addLog(event: FormEvent) {
+    event.preventDefault();
+    setLogs((current) => [
+      {
+        id: createId("sakura-sleep"),
+        date: date || today,
+        mode,
+        place,
+        flashback,
+        wakeFeeling,
+        safety,
+        memo: memo.trim(),
+        createdAt: new Date().toISOString(),
+      },
+      ...current,
+    ]);
+    setDate(today);
+    setMode("passedOut");
+    setPlace("futon");
+    setFlashback("none");
+    setWakeFeeling("blank");
+    setSafety("middle");
+    setMemo("");
+  }
+
+  return (
+    <section className="panel two-column">
+      <form className="stack" onSubmit={addLog}>
+        <div className="result-box">
+          <strong>普通の睡眠アプリじゃなくて、さくら用</strong>
+          <p>長さよりも、寝落ち方・場所・フラッシュバック・起きた感じ・安心感を短く残します。</p>
+        </div>
+        <label className="field">
+          <span>日付</span>
+          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+        </label>
+        <BranchGroup label="寝方" value={mode} options={sleepModeOptions} onChange={setMode} />
+        <BranchGroup label="寝た場所" value={place} options={sleepPlaceOptions} onChange={setPlace} />
+        <BranchGroup label="フラッシュバック" value={flashback} options={flashbackOptions} onChange={setFlashback} />
+        <BranchGroup label="起床感" value={wakeFeeling} options={wakeFeelingOptions} onChange={setWakeFeeling} />
+        <BranchGroup label="安心感" value={safety} options={safetyFeelingOptions} onChange={setSafety} />
+        <TextArea label="メモ" value={memo} onChange={setMemo} />
+        <button className="primary-button full" type="submit">
+          <Plus size={18} />
+          睡眠ログを保存
+        </button>
+      </form>
+
+      <div className="stack">
+        <section className="mini-stats trigger-stats">
+          <Stat label="記録数" value={`${logs.length}件`} />
+          <Stat label="気絶型" value={`${passedOutCount}件`} />
+          <Stat label="安心できた" value={`${safeCount}件`} />
+        </section>
+        {flashbackCount > 0 ? (
+          <div className="result-box">
+            <strong>フラッシュバックあり/少し: {flashbackCount}件</strong>
+            <p>多い時は、寝る前の刺激や予定量を少し減らすサインにできます。</p>
+          </div>
+        ) : null}
+        {sortedLogs.length === 0 ? (
+          <Empty text="睡眠ログはまだありません。" />
+        ) : (
+          sortedLogs.map((log) => (
+            <article className="sleep-card" key={log.id}>
+              <div className="log-head">
+                <strong>{formatDate(log.date)}</strong>
+                <button className="icon-button danger" type="button" onClick={() => setLogs((current) => current.filter((item) => item.id !== log.id))} aria-label="削除">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              <div className="trigger-tags">
+                <span>{sleepModeLabel[log.mode]}</span>
+                <span>{sleepPlaceLabel[log.place]}</span>
+                <span>フラッシュバック: {flashbackLabel[log.flashback]}</span>
+                <span>起床感: {wakeFeelingLabel[log.wakeFeeling]}</span>
+                <span>安心感: {safetyFeelingLabel[log.safety]}</span>
+              </div>
+              {log.memo ? <p>{log.memo}</p> : null}
+            </article>
+          ))
+        )}
       </div>
     </section>
   );

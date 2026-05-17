@@ -464,7 +464,8 @@ select:focus {
 .history-card,
 .library-card,
 .recovery-trigger-card,
-.not-now-card {
+.not-now-card,
+.sleep-card {
   display: grid;
   gap: 7px;
   padding: 12px;
@@ -486,7 +487,8 @@ select:focus {
 .guide-card p,
 .library-card p,
 .recovery-trigger-card p,
-.not-now-card p {
+.not-now-card p,
+.sleep-card p {
   color: #536158;
   line-height: 1.55;
 }
@@ -496,6 +498,12 @@ select:focus {
 }
 
 .recovery-trigger-card {
+  border: 1px solid rgba(43, 57, 50, 0.12);
+  border-radius: 8px;
+  background: #fffefa;
+}
+
+.sleep-card {
   border: 1px solid rgba(43, 57, 50, 0.12);
   border-radius: 8px;
   background: #fffefa;
