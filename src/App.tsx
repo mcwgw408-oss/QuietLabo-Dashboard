@@ -17,8 +17,10 @@ import {
   Moon,
   NotebookPen,
   PackagePlus,
+  Pencil,
   Plus,
   Search,
+  Save,
   ShoppingBasket,
   Shuffle,
   Sparkles,
@@ -387,6 +389,15 @@ function createEmptyVisitMemo(): VisitMemo {
     mustTalk: "",
     chat: "",
   };
+}
+
+function hasVisitMemoContent(memo: VisitMemo) {
+  return (
+    memo.days.some((day) =>
+      [day.sleepHours, day.breakfast, day.lunch, day.dinner, day.snack, day.medicineCount].some((value) => value.trim() && value.trim() !== "0") || day.bowel,
+    ) ||
+    [memo.other, memo.achieved, memo.happy, memo.mustTalk, memo.chat].some((value) => value.trim())
+  );
 }
 
 function formatDate(date: string) {
@@ -1757,6 +1768,8 @@ function MediaLogApp() {
 function VisitMemoApp() {
   const [memo, setMemo] = useState<VisitMemo>(loadVisitMemo);
   const [showOutput, setShowOutput] = useState(false);
+  const [isEditing, setIsEditing] = useState(() => !hasVisitMemoContent(loadVisitMemo()));
+  const [saveStatus, setSaveStatus] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
   const [copiedSnapshot, setCopiedSnapshot] = useState("");
 
@@ -1792,8 +1805,17 @@ function VisitMemoApp() {
   function clearAllMemo() {
     if (!window.confirm("すべて削除しますか？")) return;
     setMemo(createEmptyVisitMemo());
+    setIsEditing(true);
+    setSaveStatus("");
     setCopiedSnapshot("");
     setCopyStatus("");
+  }
+
+  function saveMemo() {
+    window.localStorage.setItem(VISIT_MEMO_STORAGE_KEY, JSON.stringify(memo));
+    setIsEditing(false);
+    setSaveStatus("保存しました");
+    window.setTimeout(() => setSaveStatus(""), 1800);
   }
 
   function deleteCopiedMemo() {
@@ -1818,7 +1840,7 @@ function VisitMemoApp() {
   return (
     <section className="visit-memo">
       <div className="memo-actions">
-        <button className="primary-button" type="button" onClick={addDay}>
+        <button className="primary-button" type="button" onClick={addDay} disabled={!isEditing}>
           <Plus size={18} />
           日付を追加
         </button>
@@ -1830,18 +1852,27 @@ function VisitMemoApp() {
           <Clipboard size={17} />
           コピーする
         </button>
+        <button className="primary-button save-button" type="button" onClick={saveMemo}>
+          <Save size={17} />
+          保存
+        </button>
+        <button className="text-button neutral edit-button" type="button" onClick={() => setIsEditing((current) => !current)}>
+          <Pencil size={17} />
+          {isEditing ? "編集中" : "編集"}
+        </button>
         <button className="text-button danger-soft" type="button" onClick={clearAllMemo}>
           <Trash2 size={17} />
           すべて削除
         </button>
       </div>
+      <p className="save-status">{saveStatus || (isEditing ? "編集できます。終わったら保存してください。" : "編集ボタンで内容を直せます。")}</p>
 
       <section className="memo-days" aria-label="日付ごとの記録">
         {memo.days.map((day, index) => (
           <article className="memo-day-card" key={day.id}>
             <div className="memo-day-head">
               <h2>{index + 1}日目</h2>
-              <button className="text-button danger-soft compact" type="button" onClick={() => removeDay(day.id)}>
+              <button className="text-button danger-soft compact" type="button" onClick={() => removeDay(day.id)} disabled={!isEditing}>
                 <Trash2 size={16} />
                 削除
               </button>
@@ -1849,15 +1880,15 @@ function VisitMemoApp() {
             <div className="memo-grid">
               <label className="field">
                 <span>日付</span>
-                <input type="date" value={day.date} onChange={(event) => updateDay(day.id, { date: event.target.value })} />
+                <input type="date" value={day.date} onChange={(event) => updateDay(day.id, { date: event.target.value })} disabled={!isEditing} />
               </label>
               <label className="field">
                 <span>睡眠時間</span>
-                <input value={day.sleepHours} onChange={(event) => updateDay(day.id, { sleepHours: event.target.value })} placeholder="5時間" />
+                <input value={day.sleepHours} onChange={(event) => updateDay(day.id, { sleepHours: event.target.value })} placeholder="5時間" disabled={!isEditing} />
               </label>
               <label className="field">
                 <span>お通じ</span>
-                <select value={day.bowel} onChange={(event) => updateDay(day.id, { bowel: event.target.value as VisitMemoDay["bowel"] })}>
+                <select value={day.bowel} onChange={(event) => updateDay(day.id, { bowel: event.target.value as VisitMemoDay["bowel"] })} disabled={!isEditing}>
                   <option value="">未入力</option>
                   <option value="yes">◯</option>
                   <option value="no">×</option>
@@ -1865,23 +1896,23 @@ function VisitMemoApp() {
               </label>
               <label className="field">
                 <span>朝食</span>
-                <input value={day.breakfast} onChange={(event) => updateDay(day.id, { breakfast: event.target.value })} placeholder="フルグラ" />
+                <input value={day.breakfast} onChange={(event) => updateDay(day.id, { breakfast: event.target.value })} placeholder="フルグラ" disabled={!isEditing} />
               </label>
               <label className="field">
                 <span>昼食</span>
-                <input value={day.lunch} onChange={(event) => updateDay(day.id, { lunch: event.target.value })} placeholder="焼きそば" />
+                <input value={day.lunch} onChange={(event) => updateDay(day.id, { lunch: event.target.value })} placeholder="焼きそば" disabled={!isEditing} />
               </label>
               <label className="field">
                 <span>夕食</span>
-                <input value={day.dinner} onChange={(event) => updateDay(day.id, { dinner: event.target.value })} placeholder="海鮮丼" />
+                <input value={day.dinner} onChange={(event) => updateDay(day.id, { dinner: event.target.value })} placeholder="海鮮丼" disabled={!isEditing} />
               </label>
               <label className="field">
                 <span>間食</span>
-                <input value={day.snack} onChange={(event) => updateDay(day.id, { snack: event.target.value })} placeholder="フルグラ少し" />
+                <input value={day.snack} onChange={(event) => updateDay(day.id, { snack: event.target.value })} placeholder="フルグラ少し" disabled={!isEditing} />
               </label>
               <label className="field">
                 <span>頓服回数</span>
-                <input inputMode="numeric" value={day.medicineCount} onChange={(event) => updateDay(day.id, { medicineCount: event.target.value })} placeholder="0" />
+                <input inputMode="numeric" value={day.medicineCount} onChange={(event) => updateDay(day.id, { medicineCount: event.target.value })} placeholder="0" disabled={!isEditing} />
               </label>
             </div>
           </article>
@@ -1889,11 +1920,11 @@ function VisitMemoApp() {
       </section>
 
       <section className="memo-summary panel">
-        <SummaryTextArea label="その他" value={memo.other} onChange={(other) => setMemo((current) => ({ ...current, other }))} onClear={() => clearSummaryField("other")} />
-        <SummaryTextArea label="できたこと、やれたこと、頑張れたこと" value={memo.achieved} onChange={(achieved) => setMemo((current) => ({ ...current, achieved }))} onClear={() => clearSummaryField("achieved")} />
-        <SummaryTextArea label="嬉しかったこと、嬉しい" value={memo.happy} onChange={(happy) => setMemo((current) => ({ ...current, happy }))} onClear={() => clearSummaryField("happy")} />
-        <SummaryTextArea label="これだけは忘れずに話したいこと" value={memo.mustTalk} onChange={(mustTalk) => setMemo((current) => ({ ...current, mustTalk }))} onClear={() => clearSummaryField("mustTalk")} />
-        <SummaryTextArea label="雑談メモ" value={memo.chat} onChange={(chat) => setMemo((current) => ({ ...current, chat }))} onClear={() => clearSummaryField("chat")} />
+        <SummaryTextArea label="その他" value={memo.other} onChange={(other) => setMemo((current) => ({ ...current, other }))} onClear={() => clearSummaryField("other")} disabled={!isEditing} />
+        <SummaryTextArea label="できたこと、やれたこと、頑張れたこと" value={memo.achieved} onChange={(achieved) => setMemo((current) => ({ ...current, achieved }))} onClear={() => clearSummaryField("achieved")} disabled={!isEditing} />
+        <SummaryTextArea label="嬉しかったこと、嬉しい" value={memo.happy} onChange={(happy) => setMemo((current) => ({ ...current, happy }))} onClear={() => clearSummaryField("happy")} disabled={!isEditing} />
+        <SummaryTextArea label="これだけは忘れずに話したいこと" value={memo.mustTalk} onChange={(mustTalk) => setMemo((current) => ({ ...current, mustTalk }))} onClear={() => clearSummaryField("mustTalk")} disabled={!isEditing} />
+        <SummaryTextArea label="雑談メモ" value={memo.chat} onChange={(chat) => setMemo((current) => ({ ...current, chat }))} onClear={() => clearSummaryField("chat")} disabled={!isEditing} />
       </section>
 
       {showOutput ? (
@@ -1984,17 +2015,17 @@ function buildVisitMemoText(memo: VisitMemo) {
   return lines.join("\n").trim();
 }
 
-function SummaryTextArea({ label, value, onChange, onClear }: { label: string; value: string; onChange: (value: string) => void; onClear: () => void }) {
+function SummaryTextArea({ label, value, onChange, onClear, disabled }: { label: string; value: string; onChange: (value: string) => void; onClear: () => void; disabled?: boolean }) {
   return (
     <div className="summary-field">
       <div className="summary-field-head">
         <span>{label}</span>
-        <button className="text-button danger-soft compact" type="button" onClick={onClear} disabled={!value.trim()}>
+        <button className="text-button danger-soft compact" type="button" onClick={onClear} disabled={disabled || !value.trim()}>
           <Trash2 size={15} />
           空にする
         </button>
       </div>
-      <textarea value={value} onChange={(event) => onChange(event.target.value)} />
+      <textarea value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled} />
     </div>
   );
 }

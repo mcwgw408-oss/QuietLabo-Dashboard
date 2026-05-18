@@ -962,7 +962,7 @@ select:focus {
 
 .memo-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 8px;
 }
 
@@ -981,6 +981,31 @@ select:focus {
 .text-button.compact {
   min-height: 36px;
   padding-inline: 10px;
+}
+
+.save-button {
+  background: #356c82;
+}
+
+.edit-button {
+  border-color: rgba(53, 108, 130, 0.22);
+  color: #356c82;
+  background: #eef8fb;
+}
+
+.save-status {
+  margin: -2px 2px 0;
+  color: #356c82;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.visit-memo input:disabled,
+.visit-memo textarea:disabled,
+.visit-memo select:disabled {
+  color: #526159;
+  opacity: 1;
+  background: #f4f1ea;
 }
 
 .memo-days {
