@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 
-type View = "home" | "tasks" | "recovery" | "triggerDb" | "notNow" | "sakuraSleep" | "cycleLog" | "signs" | "library" | "shopping" | "visitMemo" | "mediaLog";
+type View = "home" | "tasks" | "recovery" | "triggerDb" | "sakuraSleep" | "cycleLog" | "signs" | "library" | "shopping" | "visitMemo" | "mediaLog";
 type TaskStatus = "todo" | "doing" | "done";
 type TaskPriority = "low" | "medium" | "high";
 type MoodStatus = "stable" | "uneasy" | "tired" | "slipping" | "recovering";
@@ -89,16 +89,6 @@ type RecoveryTriggerEntry = {
   timing: TriggerTiming;
   social: TriggerSocial;
   memo: string;
-  createdAt: string;
-};
-
-type NotNowItem = {
-  id: string;
-  text: string;
-  reason: string;
-  alternative: string;
-  until: "today" | "tonight" | "tomorrow" | "later";
-  paused: boolean;
   createdAt: string;
 };
 
@@ -217,7 +207,6 @@ const TASK_STORAGE_KEY = "notion-simple-task-manager-v2";
 const LEGACY_TASK_STORAGE_KEY = "notion-simple-task-manager";
 const RECOVERY_STORAGE_KEY = "notion-recovery-log-v1";
 const RECOVERY_TRIGGER_STORAGE_KEY = "recovery-trigger-db-v1";
-const NOT_NOW_STORAGE_KEY = "not-now-list-v1";
 const SAKURA_SLEEP_STORAGE_KEY = "sakura-sleep-log-v1";
 const CYCLE_BODY_LOG_STORAGE_KEY = "cycle-body-log-v1";
 const SIGNS_STORAGE_KEY = "early-sign-checks-v1";
@@ -234,16 +223,15 @@ const today = toDateInputValue(new Date());
 
 const menuItems: Array<{ view: Exclude<View, "home">; title: string; description: string; icon: typeof Home }> = [
   { view: "tasks", title: "タスク管理", description: "やること、期限、優先度を整理", icon: ListChecks },
-  { view: "recovery", title: "回復ログ", description: "体調と気持ちを短く記録", icon: HeartPulse },
-  { view: "triggerDb", title: "回復トリガーDB", description: "効いた回復策の条件をためる", icon: Clipboard },
-  { view: "notNow", title: "今はやらないリスト", description: "禁止ではなく、今日は保留にする", icon: ClipboardCheck },
+  { view: "visitMemo", title: "訪看・診察メモ", description: "毎日の記録をコピー用に整える", icon: NotebookPen },
+  { view: "shopping", title: "買い物リスト", description: "買い忘れを減らす片手用リスト", icon: ShoppingBasket },
+  { view: "mediaLog", title: "読書・漫画・映画・ドラマログ", description: "本、漫画、映画、ドラマの進み具合と感想を残す", icon: Film },
   { view: "sakuraSleep", title: "睡眠ログ さくら版", description: "寝方、場所、起床感、安心感を残す", icon: Moon },
   { view: "cycleLog", title: "周期・体調ログ", description: "PMS/生理と回復、睡眠、感情、活動量のつながりを見る", icon: CalendarDays },
+  { view: "recovery", title: "回復ログ", description: "体調と気持ちを短く記録", icon: HeartPulse },
+  { view: "triggerDb", title: "回復トリガーDB", description: "効いた回復策の条件をためる", icon: Clipboard },
   { view: "signs", title: "崩れ始めサイン チェックUI", description: "早めのサインを拾って守りを固める", icon: ClipboardCheck },
   { view: "library", title: "安心文庫ビューア", description: "安心文をタグで保存して読み返す", icon: BookOpen },
-  { view: "shopping", title: "買い物リスト", description: "買い忘れを減らす片手用リスト", icon: ShoppingBasket },
-  { view: "visitMemo", title: "訪看・診察メモ", description: "毎日の記録をコピー用に整える", icon: NotebookPen },
-  { view: "mediaLog", title: "読書・漫画・映画・ドラマログ", description: "本、漫画、映画、ドラマの進み具合と感想を残す", icon: Film },
 ];
 
 const moodOptions: Array<{ value: MoodStatus; label: string }> = [
@@ -272,8 +260,6 @@ const triggerSpeedLabel = Object.fromEntries(triggerSpeedOptions) as Record<Trig
 const triggerDurationLabel = Object.fromEntries(triggerDurationOptions) as Record<TriggerDuration, string>;
 const triggerTimingLabel = Object.fromEntries(triggerTimingOptions) as Record<TriggerTiming, string>;
 const triggerSocialLabel = Object.fromEntries(triggerSocialOptions) as Record<TriggerSocial, string>;
-const notNowUntilOptions: Array<[NotNowItem["until"], string]> = [["today", "今日は保留"], ["tonight", "夜だけ保留"], ["tomorrow", "明日見直す"], ["later", "しばらく保留"]];
-const notNowUntilLabel = Object.fromEntries(notNowUntilOptions) as Record<NotNowItem["until"], string>;
 const libraryModeOptions: Array<[LibraryMode, string]> = [["emergency", "緊急用"], ["night", "夜用"], ["morning", "朝用"], ["uneasy", "不安"], ["tired", "疲れ"]];
 const libraryModeLabel = Object.fromEntries(libraryModeOptions) as Record<LibraryMode, string>;
 const sleepModeOptions: Array<[SleepMode, string]> = [["passedOut", "気絶型"], ["futon", "布団で寝た"], ["broken", "途中で途切れた"], ["planned", "予定して寝た"]];
@@ -501,7 +487,6 @@ export function App() {
             {view === "tasks" && <TaskManager />}
             {view === "recovery" && <RecoveryLogApp />}
             {view === "triggerDb" && <RecoveryTriggerDbApp />}
-            {view === "notNow" && <NotNowListApp />}
             {view === "sakuraSleep" && <SakuraSleepLogApp />}
             {view === "cycleLog" && <CycleBodyLogApp />}
             {view === "signs" && <SignsCheckUi />}
@@ -840,125 +825,6 @@ function RecoveryTriggerDbApp() {
             ))
           )}
         </div>
-      </div>
-    </section>
-  );
-}
-
-function NotNowListApp() {
-  const [items, setItems] = useState<NotNowItem[]>(
-    readStorage<NotNowItem[]>(NOT_NOW_STORAGE_KEY, [
-      { id: "night-decision", text: "夜の重大判断をしない", reason: "疲れている時間帯は判断を明日に回す", alternative: "メモだけ残す", until: "tomorrow", paused: false, createdAt: new Date().toISOString() },
-      { id: "sns-scroll", text: "SNSを見すぎない", reason: "刺激が増えすぎる時は距離を取る", alternative: "タイマーを10分にする", until: "today", paused: false, createdAt: new Date().toISOString() },
-      { id: "dissociation-shopping", text: "解離っぽい時は通販しない", reason: "あとで見直せるように保留する", alternative: "カートではなくメモに置く", until: "tomorrow", paused: false, createdAt: new Date().toISOString() },
-      { id: "new-plan", text: "今日は新しい予定を入れない", reason: "回復の余白を守る", alternative: "候補日だけメモする", until: "today", paused: false, createdAt: new Date().toISOString() },
-    ]),
-  );
-  const [text, setText] = useState("");
-  const [reason, setReason] = useState("");
-  const [alternative, setAlternative] = useState("");
-  const [until, setUntil] = useState<NotNowItem["until"]>("today");
-
-  useEffect(() => window.localStorage.setItem(NOT_NOW_STORAGE_KEY, JSON.stringify(items)), [items]);
-
-  const activeItems = items.filter((item) => !item.paused);
-  const pausedItems = items.filter((item) => item.paused);
-
-  function addItem(event: FormEvent) {
-    event.preventDefault();
-    if (!text.trim()) return;
-    setItems((current) => [
-      {
-        id: createId("not-now"),
-        text: text.trim(),
-        reason: reason.trim(),
-        alternative: alternative.trim(),
-        until,
-        paused: false,
-        createdAt: new Date().toISOString(),
-      },
-      ...current,
-    ]);
-    setText("");
-    setReason("");
-    setAlternative("");
-    setUntil("today");
-  }
-
-  function updateItem(id: string, patch: Partial<NotNowItem>) {
-    setItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
-  }
-
-  function renderItem(item: NotNowItem) {
-    return (
-      <article className={item.paused ? "not-now-card paused" : "not-now-card"} key={item.id}>
-        <button className="check-button" type="button" onClick={() => updateItem(item.id, { paused: !item.paused })} aria-label={item.paused ? "保留を戻す" : "今日は保留にする"}>
-          {item.paused ? <Check size={17} /> : null}
-        </button>
-        <div>
-          <div className="log-head">
-            <strong>{item.text}</strong>
-            <button className="icon-button danger" type="button" onClick={() => setItems((current) => current.filter((currentItem) => currentItem.id !== item.id))} aria-label="削除">
-              <Trash2 size={16} />
-            </button>
-          </div>
-          <div className="trigger-tags">
-            <span>{notNowUntilLabel[item.until]}</span>
-            <span>{item.paused ? "保留済み" : "まだ見える場所に置く"}</span>
-          </div>
-          {item.reason ? (
-            <p>
-              <strong>理由</strong>
-              {item.reason}
-            </p>
-          ) : null}
-          {item.alternative ? (
-            <p>
-              <strong>代わりに</strong>
-              {item.alternative}
-            </p>
-          ) : null}
-        </div>
-      </article>
-    );
-  }
-
-  return (
-    <section className="panel two-column">
-      <form className="stack" onSubmit={addItem}>
-        <div className="result-box">
-          <strong>禁止じゃなく、今日は保留</strong>
-          <p>あとで考えればいいことを、今の自分から少し離しておくためのリストです。</p>
-        </div>
-        <label className="field">
-          <span>今はやらないこと</span>
-          <input value={text} onChange={(event) => setText(event.target.value)} placeholder="例: 夜の重大判断をしない" />
-        </label>
-        <TextArea label="保留にする理由" value={reason} onChange={setReason} />
-        <TextArea label="代わりにすること" value={alternative} onChange={setAlternative} />
-        <BranchGroup label="いつまで保留する？" value={until} options={notNowUntilOptions} onChange={setUntil} />
-        <button className="primary-button full" type="submit">
-          <Plus size={18} />
-          保留リストに追加
-        </button>
-      </form>
-
-      <div className="stack">
-        <section className="mini-stats trigger-stats">
-          <Stat label="見える保留" value={`${activeItems.length}件`} />
-          <Stat label="保留済み" value={`${pausedItems.length}件`} />
-          <Stat label="合計" value={`${items.length}件`} />
-        </section>
-        {activeItems.length === 0 ? <Empty text="今見える保留はありません。" /> : activeItems.map(renderItem)}
-        {pausedItems.length > 0 ? (
-          <section className="stack" aria-label="保留済み">
-            <div className="section-title">
-              <Check size={16} />
-              <h2>今日は保留にしたもの</h2>
-            </div>
-            {pausedItems.map(renderItem)}
-          </section>
-        ) : null}
       </div>
     </section>
   );
