@@ -191,7 +191,7 @@ type DramaLog = {
   createdAt: string;
 };
 
-type SimpleMediaKind = "book" | "movie" | "drama";
+type SimpleMediaKind = "book" | "manga" | "movie" | "drama";
 
 type SimpleMediaLog = {
   id: string;
@@ -216,6 +216,7 @@ const ROULETTE_HISTORY_STORAGE_KEY = "today-roulette-history-v1";
 const SHOPPING_STORAGE_KEY = "shopping-list-mobile-v1";
 const VISIT_MEMO_STORAGE_KEY = "visit-nursing-medical-memo-v1";
 const READING_LOG_STORAGE_KEY = "reading-log-mobile-v1";
+const MANGA_LOG_STORAGE_KEY = "manga-log-mobile-v1";
 const MOVIE_LOG_STORAGE_KEY = "movie-log-mobile-v1";
 const DRAMA_LOG_STORAGE_KEY = "drama-log-mobile-v1";
 const SIMPLE_MEDIA_LOG_STORAGE_KEY = "simple-media-log-mobile-v1";
@@ -234,7 +235,7 @@ const menuItems: Array<{ view: Exclude<View, "home">; title: string; description
   { view: "roulette", title: "今日やることルーレット", description: "迷った時に小さな行動を1つ選ぶ", icon: Shuffle },
   { view: "shopping", title: "買い物リスト", description: "買い忘れを減らす片手用リスト", icon: ShoppingBasket },
   { view: "visitMemo", title: "訪看・診察メモ", description: "毎日の記録をコピー用に整える", icon: NotebookPen },
-  { view: "mediaLog", title: "読書・映画・ドラマログ", description: "本、映画、ドラマの進み具合と感想を残す", icon: Film },
+  { view: "mediaLog", title: "読書・漫画・映画・ドラマログ", description: "本、漫画、映画、ドラマの進み具合と感想を残す", icon: Film },
 ];
 
 const moodOptions: Array<{ value: MoodStatus; label: string }> = [
@@ -1484,8 +1485,9 @@ function ShoppingListApp() {
 }
 
 function MediaLogApp() {
-  const [activeTab, setActiveTab] = useState<"books" | "movies" | "dramas">("books");
+  const [activeTab, setActiveTab] = useState<"books" | "manga" | "movies" | "dramas">("books");
   const [readingLogs, setReadingLogs] = useState<ReadingLog[]>(() => readStorage<ReadingLog[]>(READING_LOG_STORAGE_KEY, []));
+  const [mangaLogs, setMangaLogs] = useState<ReadingLog[]>(() => readStorage<ReadingLog[]>(MANGA_LOG_STORAGE_KEY, []));
   const [movieLogs, setMovieLogs] = useState<MovieLog[]>(() => readStorage<MovieLog[]>(MOVIE_LOG_STORAGE_KEY, []));
   const [dramaLogs, setDramaLogs] = useState<DramaLog[]>(() => readStorage<DramaLog[]>(DRAMA_LOG_STORAGE_KEY, []));
   const [simpleLogs, setSimpleLogs] = useState<SimpleMediaLog[]>(() => readStorage<SimpleMediaLog[]>(SIMPLE_MEDIA_LOG_STORAGE_KEY, []));
@@ -1494,6 +1496,11 @@ function MediaLogApp() {
   const [bookStatus, setBookStatus] = useState<BookStatus>("want");
   const [bookMemo, setBookMemo] = useState("");
   const [bookDate, setBookDate] = useState(today);
+  const [mangaTitle, setMangaTitle] = useState("");
+  const [mangaAuthor, setMangaAuthor] = useState("");
+  const [mangaStatus, setMangaStatus] = useState<BookStatus>("want");
+  const [mangaMemo, setMangaMemo] = useState("");
+  const [mangaDate, setMangaDate] = useState(today);
   const [movieTitle, setMovieTitle] = useState("");
   const [movieDate, setMovieDate] = useState(today);
   const [movieMood, setMovieMood] = useState("");
@@ -1513,6 +1520,7 @@ function MediaLogApp() {
   const [simpleDate, setSimpleDate] = useState(today);
 
   useEffect(() => window.localStorage.setItem(READING_LOG_STORAGE_KEY, JSON.stringify(readingLogs)), [readingLogs]);
+  useEffect(() => window.localStorage.setItem(MANGA_LOG_STORAGE_KEY, JSON.stringify(mangaLogs)), [mangaLogs]);
   useEffect(() => window.localStorage.setItem(MOVIE_LOG_STORAGE_KEY, JSON.stringify(movieLogs)), [movieLogs]);
   useEffect(() => window.localStorage.setItem(DRAMA_LOG_STORAGE_KEY, JSON.stringify(dramaLogs)), [dramaLogs]);
   useEffect(() => window.localStorage.setItem(SIMPLE_MEDIA_LOG_STORAGE_KEY, JSON.stringify(simpleLogs)), [simpleLogs]);
@@ -1523,6 +1531,12 @@ function MediaLogApp() {
     finished: readingLogs.filter((item) => item.status === "finished").length,
   };
 
+  const mangaStats = {
+    want: mangaLogs.filter((item) => item.status === "want").length,
+    reading: mangaLogs.filter((item) => item.status === "reading").length,
+    finished: mangaLogs.filter((item) => item.status === "finished").length,
+  };
+
   const dramaStats = {
     watching: dramaLogs.filter((item) => item.status === "watching").length,
     paused: dramaLogs.filter((item) => item.status === "paused").length,
@@ -1530,9 +1544,11 @@ function MediaLogApp() {
   };
 
   const sortedBooks = [...readingLogs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  const sortedManga = [...mangaLogs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
   const sortedMovies = [...movieLogs].sort((a, b) => b.watchedDate.localeCompare(a.watchedDate) || b.createdAt.localeCompare(a.createdAt));
   const sortedDramas = [...dramaLogs].sort((a, b) => b.updatedDate.localeCompare(a.updatedDate) || b.createdAt.localeCompare(a.createdAt));
   const sortedSimpleLogs = [...simpleLogs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  const simpleMediaKindLabel: Record<SimpleMediaKind, string> = { book: "本", manga: "漫画", movie: "映画", drama: "ドラマ" };
 
   function addSimpleLog(event: FormEvent) {
     event.preventDefault();
@@ -1574,6 +1590,28 @@ function MediaLogApp() {
     setBookStatus("want");
     setBookMemo("");
     setBookDate(today);
+  }
+
+  function addManga(event: FormEvent) {
+    event.preventDefault();
+    if (!mangaTitle.trim()) return;
+    setMangaLogs((current) => [
+      {
+        id: createId("manga"),
+        title: mangaTitle.trim(),
+        author: mangaAuthor.trim(),
+        status: mangaStatus,
+        memo: mangaMemo.trim(),
+        date: mangaDate || today,
+        createdAt: new Date().toISOString(),
+      },
+      ...current,
+    ]);
+    setMangaTitle("");
+    setMangaAuthor("");
+    setMangaStatus("want");
+    setMangaMemo("");
+    setMangaDate(today);
   }
 
   function addMovie(event: FormEvent) {
@@ -1630,6 +1668,10 @@ function MediaLogApp() {
     setReadingLogs((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   }
 
+  function updateManga(id: string, patch: Partial<ReadingLog>) {
+    setMangaLogs((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
   function updateMovie(id: string, patch: Partial<MovieLog>) {
     setMovieLogs((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   }
@@ -1655,11 +1697,12 @@ function MediaLogApp() {
     <section className="media-log">
       <section className="media-hero">
         <div>
-          <p className="eyebrow">Books, movies & dramas</p>
+          <p className="eyebrow">Books, manga, movies & dramas</p>
           <h2>読んだ気持ち、観た作品、ドラマの進み具合を残す</h2>
         </div>
         <div className="media-counts" aria-label="記録数">
           <span>本 {readingLogs.length}</span>
+          <span>漫画 {mangaLogs.length}</span>
           <span>映画 {movieLogs.length}</span>
           <span>ドラマ {dramaLogs.length}</span>
         </div>
@@ -1679,6 +1722,7 @@ function MediaLogApp() {
             <span>種類</span>
             <select value={simpleKind} onChange={(event) => setSimpleKind(event.target.value as SimpleMediaKind)}>
               <option value="book">本</option>
+              <option value="manga">漫画</option>
               <option value="movie">映画</option>
               <option value="drama">ドラマ</option>
             </select>
@@ -1704,7 +1748,7 @@ function MediaLogApp() {
             sortedSimpleLogs.map((item) => (
               <article className="simple-media-card" key={item.id}>
                 <div className="simple-media-head">
-                  <span className={`media-kind ${item.kind}`}>{item.kind === "book" ? "本" : item.kind === "movie" ? "映画" : "ドラマ"}</span>
+                  <span className={`media-kind ${item.kind}`}>{simpleMediaKindLabel[item.kind]}</span>
                   <div>
                     <strong>{item.title}</strong>
                     <small>{item.date ? formatDate(item.date) : "日付未入力"}</small>
@@ -1723,6 +1767,9 @@ function MediaLogApp() {
       <div className="segmented media-tabs" aria-label="ログ切り替え">
         <button className={activeTab === "books" ? "active" : ""} type="button" onClick={() => setActiveTab("books")}>
           読書ログ
+        </button>
+        <button className={activeTab === "manga" ? "active" : ""} type="button" onClick={() => setActiveTab("manga")}>
+          漫画ログ
         </button>
         <button className={activeTab === "movies" ? "active" : ""} type="button" onClick={() => setActiveTab("movies")}>
           映画ログ
@@ -1802,6 +1849,81 @@ function MediaLogApp() {
                     </label>
                   </div>
                   <textarea value={item.memo} onChange={(event) => updateBook(item.id, { memo: event.target.value })} placeholder="感想メモ" />
+                </article>
+              ))
+            )}
+          </section>
+        </>
+      ) : activeTab === "manga" ? (
+        <>
+          <section className="media-stats">
+            <Stat label="読みたい" value={`${mangaStats.want}冊`} />
+            <Stat label="読んでる" value={`${mangaStats.reading}冊`} />
+            <Stat label="読了" value={`${mangaStats.finished}冊`} />
+          </section>
+
+          <form className="media-form" onSubmit={addManga}>
+            <label className="field">
+              <span>タイトル</span>
+              <input value={mangaTitle} onChange={(event) => setMangaTitle(event.target.value)} placeholder="漫画のタイトル" />
+            </label>
+            <label className="field">
+              <span>作者</span>
+              <input value={mangaAuthor} onChange={(event) => setMangaAuthor(event.target.value)} placeholder="作者名" />
+            </label>
+            <label className="field">
+              <span>状態</span>
+              <select value={mangaStatus} onChange={(event) => setMangaStatus(event.target.value as BookStatus)}>
+                <option value="want">読みたい</option>
+                <option value="reading">読んでる</option>
+                <option value="finished">読了</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>日付</span>
+              <input type="date" value={mangaDate} onChange={(event) => setMangaDate(event.target.value)} />
+            </label>
+            <label className="field media-wide">
+              <span>感想メモ</span>
+              <textarea value={mangaMemo} onChange={(event) => setMangaMemo(event.target.value)} placeholder="好きな場面、続きが気になる理由、読後感など" />
+            </label>
+            <button className="primary-button full media-wide" type="submit">
+              <Plus size={18} />
+              漫画ログを追加
+            </button>
+          </form>
+
+          <section className="media-list" aria-label="漫画ログ一覧">
+            {sortedManga.length === 0 ? (
+              <Empty text="漫画ログはまだありません。" />
+            ) : (
+              sortedManga.map((item) => (
+                <article className="media-card manga-card" key={item.id}>
+                  <div className="media-card-head">
+                    <BookOpen size={19} />
+                    <div>
+                      <input value={item.title} onChange={(event) => updateManga(item.id, { title: event.target.value })} aria-label="タイトル" />
+                      <small>{item.author || "作者未入力"}</small>
+                    </div>
+                    <button className="icon-button danger" type="button" onClick={() => setMangaLogs((current) => current.filter((log) => log.id !== item.id))} aria-label="削除">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <div className="media-card-grid">
+                    <label>
+                      <span>状態</span>
+                      <select value={item.status} onChange={(event) => updateManga(item.id, { status: event.target.value as BookStatus })}>
+                        <option value="want">読みたい</option>
+                        <option value="reading">読んでる</option>
+                        <option value="finished">読了</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>日付</span>
+                      <input type="date" value={item.date} onChange={(event) => updateManga(item.id, { date: event.target.value })} />
+                    </label>
+                  </div>
+                  <textarea value={item.memo} onChange={(event) => updateManga(item.id, { memo: event.target.value })} placeholder="感想メモ" />
                 </article>
               ))
             )}

@@ -1,5 +1,5 @@
 const BASE_URL = "/QuietLabo-Dashboard/";
-const CACHE_NAME = "quietlabo-dashboard-pwa-v4";
+const CACHE_NAME = "quietlabo-dashboard-pwa-v5";
 const APP_SHELL = [`${BASE_URL}manifest.webmanifest`, `${BASE_URL}pwa-icon.svg`];
 
 self.addEventListener("install", (event) => {

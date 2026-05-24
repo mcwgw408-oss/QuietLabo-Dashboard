@@ -1216,6 +1216,11 @@ select:focus {
   background: #45745f;
 }
 
+.media-kind.manga {
+  min-width: 50px;
+  background: #8a5a44;
+}
+
 .media-kind.movie {
   background: #5f5f77;
 }
