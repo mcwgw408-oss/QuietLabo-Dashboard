@@ -530,6 +530,81 @@ select:focus {
   font-size: 0.8rem;
 }
 
+.game-time-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.game-time-grid label {
+  min-height: auto;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.game-duration-preview,
+.slider-field div,
+.game-score-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.game-duration-preview {
+  min-height: 56px;
+  border: 1px solid rgba(43, 57, 50, 0.12);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #f2f7f0;
+}
+
+.game-duration-preview span {
+  color: #6c7972;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.game-duration-preview strong {
+  color: #2f4337;
+  font-size: 1.04rem;
+}
+
+.slider-field div {
+  min-height: 42px;
+  border: 1px solid rgba(43, 57, 50, 0.14);
+  border-radius: 8px;
+  padding: 0 11px;
+  background: #fffefa;
+}
+
+.slider-field input {
+  height: 30px;
+  padding: 0;
+  accent-color: #45745f;
+}
+
+.slider-field strong {
+  min-width: 36px;
+  color: #2f4337;
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.game-score-row {
+  justify-content: flex-start;
+}
+
+.game-score-row span {
+  min-height: 28px;
+  border-radius: 8px;
+  padding: 5px 8px;
+  color: #536158;
+  background: #edf6ef;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
 .recovery-trigger-card p strong {
   display: block;
   margin-bottom: 3px;
@@ -1375,6 +1450,7 @@ select:focus {
   .task-form.compact,
   .memo-actions,
   .memo-grid,
+  .game-time-grid,
   .simple-media-form,
   .media-form,
   .media-card-grid {

@@ -10,6 +10,7 @@ import {
   Crown,
   Dumbbell,
   Film,
+  Gamepad2,
   HeartPulse,
   Home,
   ListChecks,
@@ -30,7 +31,7 @@ import {
 } from "lucide-react";
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 
-type View = "home" | "tasks" | "recovery" | "triggerDb" | "sakuraSleep" | "cycleLog" | "signs" | "library" | "shopping" | "visitMemo" | "mediaLog";
+type View = "home" | "tasks" | "recovery" | "triggerDb" | "sakuraSleep" | "cycleLog" | "signs" | "library" | "shopping" | "visitMemo" | "mediaLog" | "gameLog";
 type TaskStatus = "todo" | "doing" | "done";
 type TaskPriority = "low" | "medium" | "high";
 type MoodStatus = "stable" | "uneasy" | "tired" | "slipping" | "recovering";
@@ -50,6 +51,9 @@ type CyclePmsLevel = "none" | "little" | "strong" | "unknown";
 type CycleEmotion = "anxiety" | "irritation" | "tearful" | "rushed" | "racingThoughts" | "foggy";
 type CycleSymptom = "cramps" | "headache" | "sleepy" | "fatigue" | "nausea" | "backPain" | "appetite";
 type CycleActivityImpact = "noteEasy" | "noteHard" | "outingEasy" | "outingHard" | "aiWork" | "passiveOk" | "restFirst";
+type GameFatigue = "none" | "little" | "strong";
+type GameSleepiness = "none" | "little" | "strong";
+type GameAfterEffect = "slept" | "worked" | "spacedOut" | "recovered";
 
 type Task = {
   id: string;
@@ -203,6 +207,22 @@ type SimpleMediaLog = {
   createdAt: string;
 };
 
+type GameLog = {
+  id: string;
+  gameName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  playMinutes: number;
+  fatigue: GameFatigue;
+  sleepiness: GameSleepiness;
+  focus: number;
+  fun: number;
+  afterEffect: GameAfterEffect;
+  memo: string;
+  createdAt: string;
+};
+
 const TASK_STORAGE_KEY = "notion-simple-task-manager-v2";
 const LEGACY_TASK_STORAGE_KEY = "notion-simple-task-manager";
 const RECOVERY_STORAGE_KEY = "notion-recovery-log-v1";
@@ -218,6 +238,7 @@ const MANGA_LOG_STORAGE_KEY = "manga-log-mobile-v1";
 const MOVIE_LOG_STORAGE_KEY = "movie-log-mobile-v1";
 const DRAMA_LOG_STORAGE_KEY = "drama-log-mobile-v1";
 const SIMPLE_MEDIA_LOG_STORAGE_KEY = "simple-media-log-mobile-v1";
+const GAME_LOG_STORAGE_KEY = "game-log-mobile-v1";
 
 const today = toDateInputValue(new Date());
 
@@ -226,6 +247,7 @@ const menuItems: Array<{ view: Exclude<View, "home">; title: string; description
   { view: "visitMemo", title: "訪看・診察メモ", description: "毎日の記録をコピー用に整える", icon: NotebookPen },
   { view: "shopping", title: "買い物リスト", description: "買い忘れを減らす片手用リスト", icon: ShoppingBasket },
   { view: "mediaLog", title: "読書・漫画・映画・ドラマログ", description: "本、漫画、映画、ドラマの進み具合と感想を残す", icon: Film },
+  { view: "gameLog", title: "ゲームログ", description: "疲労、眠気、集中、回復への影響を観察する", icon: Gamepad2 },
   { view: "sakuraSleep", title: "睡眠ログ さくら版", description: "寝方、場所、起床感、安心感を残す", icon: Moon },
   { view: "cycleLog", title: "周期・体調ログ", description: "PMS/生理と回復、睡眠、感情、活動量のつながりを見る", icon: CalendarDays },
   { view: "recovery", title: "回復ログ", description: "体調と気持ちを短く記録", icon: HeartPulse },
@@ -303,6 +325,12 @@ const cycleActivityOptions: Array<{ id: CycleActivityImpact; label: string }> = 
 const cycleEmotionLabel = Object.fromEntries(cycleEmotionOptions.map((item) => [item.id, item.label])) as Record<CycleEmotion, string>;
 const cycleSymptomLabel = Object.fromEntries(cycleSymptomOptions.map((item) => [item.id, item.label])) as Record<CycleSymptom, string>;
 const cycleActivityLabel = Object.fromEntries(cycleActivityOptions.map((item) => [item.id, item.label])) as Record<CycleActivityImpact, string>;
+const gameFatigueOptions: Array<[GameFatigue, string]> = [["none", "疲れない"], ["little", "少し疲れる"], ["strong", "かなり疲れる"]];
+const gameSleepinessOptions: Array<[GameSleepiness, string]> = [["none", "なし"], ["little", "少し"], ["strong", "強い"]];
+const gameAfterEffectOptions: Array<[GameAfterEffect, string]> = [["slept", "寝た"], ["worked", "作業できた"], ["spacedOut", "ボーッとした"], ["recovered", "完全復活した"]];
+const gameFatigueLabel = Object.fromEntries(gameFatigueOptions) as Record<GameFatigue, string>;
+const gameSleepinessLabel = Object.fromEntries(gameSleepinessOptions) as Record<GameSleepiness, string>;
+const gameAfterEffectLabel = Object.fromEntries(gameAfterEffectOptions) as Record<GameAfterEffect, string>;
 
 const signOptions: Array<{ id: SignId; label: string; guide: string }> = [
   { id: "sleep", label: "眠りが浅い", guide: "寝る前の刺激を減らして、予定を詰めすぎない。" },
@@ -362,6 +390,38 @@ function toDateInputValue(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function calculatePlayMinutes(startTime: string, endTime: string) {
+  if (!startTime || !endTime) return 0;
+  const [startHour, startMinute] = startTime.split(":").map(Number);
+  const [endHour, endMinute] = endTime.split(":").map(Number);
+  if ([startHour, startMinute, endHour, endMinute].some((value) => Number.isNaN(value))) return 0;
+  const startTotal = startHour * 60 + startMinute;
+  let endTotal = endHour * 60 + endMinute;
+  if (endTotal < startTotal) endTotal += 24 * 60;
+  return endTotal - startTotal;
+}
+
+function formatPlayMinutes(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  if (hours === 0) return `${restMinutes}分`;
+  if (restMinutes === 0) return `${hours}時間`;
+  return `${hours}時間${restMinutes}分`;
+}
+
+function formatTimeRange(startTime: string, endTime: string) {
+  if (!startTime && !endTime) return "時間未入力";
+  if (!endTime) return `${startTime}から`;
+  if (!startTime) return `${endTime}まで`;
+  return `${startTime} - ${endTime}`;
+}
+
+function averageScore(values: number[]) {
+  if (values.length === 0) return "0.0";
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return (total / values.length).toFixed(1);
 }
 
 function readStorage<T>(key: string, fallback: T): T {
@@ -494,6 +554,7 @@ export function App() {
             {view === "shopping" && <ShoppingListApp />}
             {view === "visitMemo" && <VisitMemoApp />}
             {view === "mediaLog" && <MediaLogApp />}
+            {view === "gameLog" && <GameLogApp />}
           </>
         )}
       </section>
@@ -1459,6 +1520,151 @@ function ShoppingListApp() {
   );
 }
 
+function GameLogApp() {
+  const [logs, setLogs] = useState<GameLog[]>(() => readStorage<GameLog[]>(GAME_LOG_STORAGE_KEY, []));
+  const [gameName, setGameName] = useState("");
+  const [date, setDate] = useState(today);
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [fatigue, setFatigue] = useState<GameFatigue>("little");
+  const [sleepiness, setSleepiness] = useState<GameSleepiness>("none");
+  const [focus, setFocus] = useState(3);
+  const [fun, setFun] = useState(4);
+  const [afterEffect, setAfterEffect] = useState<GameAfterEffect>("spacedOut");
+  const [memo, setMemo] = useState("");
+
+  useEffect(() => window.localStorage.setItem(GAME_LOG_STORAGE_KEY, JSON.stringify(logs)), [logs]);
+
+  const previewMinutes = calculatePlayMinutes(startTime, endTime);
+  const sortedLogs = [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  const strongFatigueCount = logs.filter((log) => log.fatigue === "strong").length;
+  const sleepyCount = logs.filter((log) => log.sleepiness !== "none").length;
+  const sleepRouteCount = logs.filter((log) => log.afterEffect === "slept").length;
+
+  function addLog(event: FormEvent) {
+    event.preventDefault();
+    if (!gameName.trim()) return;
+    setLogs((current) => [
+      {
+        id: createId("game"),
+        gameName: gameName.trim(),
+        date: date || today,
+        startTime,
+        endTime,
+        playMinutes: previewMinutes,
+        fatigue,
+        sleepiness,
+        focus,
+        fun,
+        afterEffect,
+        memo: memo.trim(),
+        createdAt: new Date().toISOString(),
+      },
+      ...current,
+    ]);
+    setGameName("");
+    setDate(today);
+    setStartTime("");
+    setEndTime("");
+    setFatigue("little");
+    setSleepiness("none");
+    setFocus(3);
+    setFun(4);
+    setAfterEffect("spacedOut");
+    setMemo("");
+  }
+
+  return (
+    <section className="panel two-column game-log">
+      <form className="stack" onSubmit={addLog}>
+        <div className="result-box">
+          <strong>ゲーム後の状態変化を見るログ</strong>
+          <p>時間管理ではなく、疲労・眠気・集中・回復への影響をゲームごとに残します。</p>
+        </div>
+
+        <label className="field">
+          <span>ゲーム名</span>
+          <input value={gameName} onChange={(event) => setGameName(event.target.value)} placeholder="例: FF、MGS" />
+        </label>
+
+        <div className="status-row game-time-grid">
+          <label className="field">
+            <span>日付</span>
+            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>開始時間</span>
+            <input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} onInput={(event) => setStartTime(event.currentTarget.value)} />
+          </label>
+          <label className="field">
+            <span>終了時間</span>
+            <input type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} onInput={(event) => setEndTime(event.currentTarget.value)} />
+          </label>
+        </div>
+
+        <div className="game-duration-preview">
+          <span>プレイ時間</span>
+          <strong>{previewMinutes > 0 ? formatPlayMinutes(previewMinutes) : "時間を入れると自動計算"}</strong>
+        </div>
+
+        <BranchGroup label="疲労感" value={fatigue} options={gameFatigueOptions} onChange={setFatigue} />
+        <BranchGroup label="眠気" value={sleepiness} options={gameSleepinessOptions} onChange={setSleepiness} />
+        <SliderField label="集中度" value={focus} onChange={setFocus} />
+        <SliderField label="楽しさ" value={fun} onChange={setFun} />
+        <BranchGroup label="その後どうなったか" value={afterEffect} options={gameAfterEffectOptions} onChange={setAfterEffect} />
+        <TextArea label="一言メモ" value={memo} onChange={setMemo} />
+
+        <button className="primary-button full" type="submit">
+          <Plus size={18} />
+          ゲームログを保存
+        </button>
+      </form>
+
+      <div className="stack">
+        <section className="mini-stats trigger-stats">
+          <Stat label="記録数" value={`${logs.length}件`} />
+          <Stat label="かなり疲れる" value={`${strongFatigueCount}件`} />
+          <Stat label="眠気あり" value={`${sleepyCount}件`} />
+        </section>
+        <section className="mini-stats trigger-stats">
+          <Stat label="寝る導線" value={`${sleepRouteCount}件`} />
+          <Stat label="平均集中" value={logs.length ? `${averageScore(logs.map((log) => log.focus))}/5` : "-"} />
+          <Stat label="平均楽しさ" value={logs.length ? `${averageScore(logs.map((log) => log.fun))}/5` : "-"} />
+        </section>
+
+        {sortedLogs.length === 0 ? (
+          <Empty text="ゲームログはまだありません。" />
+        ) : (
+          sortedLogs.map((log) => (
+            <article className="sleep-card game-card" key={log.id}>
+              <div className="log-head">
+                <strong>
+                  {log.gameName} / {formatDate(log.date)}
+                </strong>
+                <button className="icon-button danger" type="button" onClick={() => setLogs((current) => current.filter((item) => item.id !== log.id))} aria-label="削除">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+              <div className="trigger-tags">
+                <span>{formatTimeRange(log.startTime, log.endTime)}</span>
+                <span>{log.playMinutes > 0 ? formatPlayMinutes(log.playMinutes) : "時間未計算"}</span>
+                <span>疲労: {gameFatigueLabel[log.fatigue]}</span>
+                <span>眠気: {gameSleepinessLabel[log.sleepiness]}</span>
+                <span>その後: {gameAfterEffectLabel[log.afterEffect]}</span>
+              </div>
+              <div className="game-score-row">
+                <span>集中 {log.focus}/5</span>
+                <span>楽しさ {log.fun}/5</span>
+              </div>
+              {log.memo ? <p>{log.memo}</p> : null}
+            </article>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
 function MediaLogApp() {
   const [activeTab, setActiveTab] = useState<"books" | "manga" | "movies" | "dramas">("books");
   const [readingLogs, setReadingLogs] = useState<ReadingLog[]>(() => readStorage<ReadingLog[]>(READING_LOG_STORAGE_KEY, []));
@@ -2353,6 +2559,18 @@ function TextArea({ label, value, onChange }: { label: string; value: string; on
     <label className="field">
       <span>{label}</span>
       <textarea value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function SliderField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  return (
+    <label className="field slider-field">
+      <span>{label}</span>
+      <div>
+        <input type="range" min="1" max="5" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+        <strong>{value}/5</strong>
+      </div>
     </label>
   );
 }
