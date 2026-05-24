@@ -1220,6 +1220,11 @@ select:focus {
   background: #5f5f77;
 }
 
+.media-kind.drama {
+  min-width: 58px;
+  background: #356c82;
+}
+
 .media-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1328,6 +1333,32 @@ select:focus {
   font-size: 0.9rem;
 }
 
+.drama-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.drama-progress strong,
+.drama-progress span {
+  min-height: 28px;
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.drama-progress strong {
+  color: #ffffff;
+  background: #356c82;
+}
+
+.drama-progress span {
+  color: #536158;
+  background: #f2eee6;
+}
+
 @media (max-width: 820px) {
   .home-grid,
   .two-column,
@@ -1399,7 +1430,7 @@ select:focus {
   }
 
   .media-counts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

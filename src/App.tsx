@@ -26,6 +26,7 @@ import {
   Sparkles,
   Star,
   Trash2,
+  Tv,
   Wheat,
 } from "lucide-react";
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
@@ -34,6 +35,7 @@ type View = "home" | "tasks" | "recovery" | "triggerDb" | "notNow" | "sakuraSlee
 type TaskStatus = "todo" | "doing" | "done";
 type TaskPriority = "low" | "medium" | "high";
 type MoodStatus = "stable" | "uneasy" | "tired" | "slipping" | "recovering";
+type NightState = "calm" | "okay" | "hard" | "recovered";
 type Energy = "low" | "middle" | "high";
 type Mind = "calm" | "uneasy" | "overloaded";
 type Need = "rest" | "light" | "connect";
@@ -63,13 +65,18 @@ type Task = {
 type RecoveryLog = {
   id: string;
   date: string;
-  status: MoodStatus;
-  bodyNote: string;
-  feelingNote: string;
-  doneOneThing: string;
-  recoveryTrigger: string;
   todayWord: string;
+  currentMood: string;
+  nightState: NightState;
+  almostCollapsedScene: string;
+  helpfulThing: string;
+  returnedThing: string;
   createdAt: string;
+  status?: MoodStatus;
+  bodyNote?: string;
+  feelingNote?: string;
+  doneOneThing?: string;
+  recoveryTrigger?: string;
 };
 
 type RecoveryTriggerEntry = {
@@ -169,7 +176,22 @@ type MovieLog = {
   createdAt: string;
 };
 
-type SimpleMediaKind = "book" | "movie";
+type DramaStatus = "watching" | "paused" | "finished";
+
+type DramaLog = {
+  id: string;
+  title: string;
+  season: string;
+  currentEpisode: string;
+  totalEpisodes: string;
+  service: string;
+  status: DramaStatus;
+  memo: string;
+  updatedDate: string;
+  createdAt: string;
+};
+
+type SimpleMediaKind = "book" | "movie" | "drama";
 
 type SimpleMediaLog = {
   id: string;
@@ -195,6 +217,7 @@ const SHOPPING_STORAGE_KEY = "shopping-list-mobile-v1";
 const VISIT_MEMO_STORAGE_KEY = "visit-nursing-medical-memo-v1";
 const READING_LOG_STORAGE_KEY = "reading-log-mobile-v1";
 const MOVIE_LOG_STORAGE_KEY = "movie-log-mobile-v1";
+const DRAMA_LOG_STORAGE_KEY = "drama-log-mobile-v1";
 const SIMPLE_MEDIA_LOG_STORAGE_KEY = "simple-media-log-mobile-v1";
 
 const today = toDateInputValue(new Date());
@@ -211,7 +234,7 @@ const menuItems: Array<{ view: Exclude<View, "home">; title: string; description
   { view: "roulette", title: "今日やることルーレット", description: "迷った時に小さな行動を1つ選ぶ", icon: Shuffle },
   { view: "shopping", title: "買い物リスト", description: "買い忘れを減らす片手用リスト", icon: ShoppingBasket },
   { view: "visitMemo", title: "訪看・診察メモ", description: "毎日の記録をコピー用に整える", icon: NotebookPen },
-  { view: "mediaLog", title: "読書・映画ログ", description: "本と映画の感想をスマホで残す", icon: Film },
+  { view: "mediaLog", title: "読書・映画・ドラマログ", description: "本、映画、ドラマの進み具合と感想を残す", icon: Film },
 ];
 
 const moodOptions: Array<{ value: MoodStatus; label: string }> = [
@@ -223,6 +246,13 @@ const moodOptions: Array<{ value: MoodStatus; label: string }> = [
 ];
 
 const moodLabel = Object.fromEntries(moodOptions.map((item) => [item.value, item.label])) as Record<MoodStatus, string>;
+const nightStateOptions: Array<[NightState, string]> = [
+  ["calm", "穏やか"],
+  ["okay", "まあまあ"],
+  ["hard", "しんどかった"],
+  ["recovered", "崩れたけど戻れた"],
+];
+const nightStateLabel = Object.fromEntries(nightStateOptions) as Record<NightState, string>;
 const priorityLabel: Record<TaskPriority, string> = { low: "低", medium: "中", high: "高" };
 const statusLabel: Record<TaskStatus, string> = { todo: "未着手", doing: "進行中", done: "完了" };
 const triggerSpeedOptions: Array<[TriggerSpeed, string]> = [["fast", "即効性あり"], ["medium", "少し後で効く"], ["slow", "じわじわ"]];
@@ -575,43 +605,66 @@ function TaskManager() {
 
 function RecoveryLogApp() {
   const [logs, setLogs] = useState<RecoveryLog[]>(readStorage<RecoveryLog[]>(RECOVERY_STORAGE_KEY, []));
-  const [status, setStatus] = useState<MoodStatus>("stable");
-  const [bodyNote, setBodyNote] = useState("");
-  const [feelingNote, setFeelingNote] = useState("");
-  const [doneOneThing, setDoneOneThing] = useState("");
-  const [recoveryTrigger, setRecoveryTrigger] = useState("");
+  const [date, setDate] = useState(today);
   const [todayWord, setTodayWord] = useState("");
+  const [currentMood, setCurrentMood] = useState("");
+  const [nightState, setNightState] = useState<NightState>("calm");
+  const [almostCollapsedScene, setAlmostCollapsedScene] = useState("");
+  const [helpfulThing, setHelpfulThing] = useState("");
+  const [returnedThing, setReturnedThing] = useState("");
 
   useEffect(() => window.localStorage.setItem(RECOVERY_STORAGE_KEY, JSON.stringify(logs)), [logs]);
 
   function saveLog(event: FormEvent) {
     event.preventDefault();
-    setLogs((current) => [{ id: createId("recovery"), date: today, status, bodyNote, feelingNote, doneOneThing, recoveryTrigger, todayWord, createdAt: new Date().toISOString() }, ...current]);
-    setBodyNote("");
-    setFeelingNote("");
-    setDoneOneThing("");
-    setRecoveryTrigger("");
+    setLogs((current) => [
+      {
+        id: createId("recovery"),
+        date,
+        todayWord,
+        currentMood,
+        nightState,
+        almostCollapsedScene,
+        helpfulThing,
+        returnedThing,
+        createdAt: new Date().toISOString(),
+      },
+      ...current,
+    ]);
+    setDate(today);
     setTodayWord("");
+    setCurrentMood("");
+    setNightState("calm");
+    setAlmostCollapsedScene("");
+    setHelpfulThing("");
+    setReturnedThing("");
   }
 
   return (
     <section className="panel two-column">
       <form className="stack" onSubmit={saveLog}>
-        <div className="choice-grid five">
-          {moodOptions.map((item) => (
-            <button className={status === item.value ? "selected" : ""} key={item.value} type="button" onClick={() => setStatus(item.value)}>
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <TextArea label="体の状態" value={bodyNote} onChange={setBodyNote} />
-        <TextArea label="気持ちの状態" value={feelingNote} onChange={setFeelingNote} />
-        <TextArea label="できたことを1つ" value={doneOneThing} onChange={setDoneOneThing} />
-        <TextArea label="効いた回復トリガー" value={recoveryTrigger} onChange={setRecoveryTrigger} />
+        <label className="field">
+          <span>日付</span>
+          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+        </label>
         <label className="field">
           <span>今日のひとこと</span>
-          <input value={todayWord} onChange={(event) => setTodayWord(event.target.value)} placeholder="今日はここまでで十分" />
+          <input value={todayWord} onChange={(event) => setTodayWord(event.target.value)} />
         </label>
+        <TextArea label="今の気分" value={currentMood} onChange={setCurrentMood} />
+        <fieldset className="branch-group">
+          <legend>夜の状態</legend>
+          <div className="choice-grid">
+            {nightStateOptions.map(([value, label]) => (
+              <button className={nightState === value ? "selected" : ""} key={value} type="button" onClick={() => setNightState(value)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <TextArea label="崩れそうだった場面" value={almostCollapsedScene} onChange={setAlmostCollapsedScene} />
+        <TextArea label="役に立ったもの" value={helpfulThing} onChange={setHelpfulThing} />
+        <TextArea label="戻れたこと" value={returnedThing} onChange={setReturnedThing} />
         <button className="primary-button full" type="submit">
           <Plus size={18} />
           保存
@@ -1431,9 +1484,10 @@ function ShoppingListApp() {
 }
 
 function MediaLogApp() {
-  const [activeTab, setActiveTab] = useState<"books" | "movies">("books");
+  const [activeTab, setActiveTab] = useState<"books" | "movies" | "dramas">("books");
   const [readingLogs, setReadingLogs] = useState<ReadingLog[]>(() => readStorage<ReadingLog[]>(READING_LOG_STORAGE_KEY, []));
   const [movieLogs, setMovieLogs] = useState<MovieLog[]>(() => readStorage<MovieLog[]>(MOVIE_LOG_STORAGE_KEY, []));
+  const [dramaLogs, setDramaLogs] = useState<DramaLog[]>(() => readStorage<DramaLog[]>(DRAMA_LOG_STORAGE_KEY, []));
   const [simpleLogs, setSimpleLogs] = useState<SimpleMediaLog[]>(() => readStorage<SimpleMediaLog[]>(SIMPLE_MEDIA_LOG_STORAGE_KEY, []));
   const [bookTitle, setBookTitle] = useState("");
   const [bookAuthor, setBookAuthor] = useState("");
@@ -1445,6 +1499,14 @@ function MediaLogApp() {
   const [movieMood, setMovieMood] = useState("");
   const [movieMemo, setMovieMemo] = useState("");
   const [rewatchScore, setRewatchScore] = useState(3);
+  const [dramaTitle, setDramaTitle] = useState("");
+  const [dramaSeason, setDramaSeason] = useState("");
+  const [dramaCurrentEpisode, setDramaCurrentEpisode] = useState("");
+  const [dramaTotalEpisodes, setDramaTotalEpisodes] = useState("");
+  const [dramaService, setDramaService] = useState("");
+  const [dramaStatus, setDramaStatus] = useState<DramaStatus>("watching");
+  const [dramaMemo, setDramaMemo] = useState("");
+  const [dramaUpdatedDate, setDramaUpdatedDate] = useState(today);
   const [simpleTitle, setSimpleTitle] = useState("");
   const [simpleKind, setSimpleKind] = useState<SimpleMediaKind>("book");
   const [simpleMemo, setSimpleMemo] = useState("");
@@ -1452,6 +1514,7 @@ function MediaLogApp() {
 
   useEffect(() => window.localStorage.setItem(READING_LOG_STORAGE_KEY, JSON.stringify(readingLogs)), [readingLogs]);
   useEffect(() => window.localStorage.setItem(MOVIE_LOG_STORAGE_KEY, JSON.stringify(movieLogs)), [movieLogs]);
+  useEffect(() => window.localStorage.setItem(DRAMA_LOG_STORAGE_KEY, JSON.stringify(dramaLogs)), [dramaLogs]);
   useEffect(() => window.localStorage.setItem(SIMPLE_MEDIA_LOG_STORAGE_KEY, JSON.stringify(simpleLogs)), [simpleLogs]);
 
   const bookStats = {
@@ -1460,8 +1523,15 @@ function MediaLogApp() {
     finished: readingLogs.filter((item) => item.status === "finished").length,
   };
 
+  const dramaStats = {
+    watching: dramaLogs.filter((item) => item.status === "watching").length,
+    paused: dramaLogs.filter((item) => item.status === "paused").length,
+    finished: dramaLogs.filter((item) => item.status === "finished").length,
+  };
+
   const sortedBooks = [...readingLogs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
   const sortedMovies = [...movieLogs].sort((a, b) => b.watchedDate.localeCompare(a.watchedDate) || b.createdAt.localeCompare(a.createdAt));
+  const sortedDramas = [...dramaLogs].sort((a, b) => b.updatedDate.localeCompare(a.updatedDate) || b.createdAt.localeCompare(a.createdAt));
   const sortedSimpleLogs = [...simpleLogs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 
   function addSimpleLog(event: FormEvent) {
@@ -1528,6 +1598,34 @@ function MediaLogApp() {
     setRewatchScore(3);
   }
 
+  function addDrama(event: FormEvent) {
+    event.preventDefault();
+    if (!dramaTitle.trim()) return;
+    setDramaLogs((current) => [
+      {
+        id: createId("drama"),
+        title: dramaTitle.trim(),
+        season: dramaSeason.trim(),
+        currentEpisode: dramaCurrentEpisode.trim(),
+        totalEpisodes: dramaTotalEpisodes.trim(),
+        service: dramaService.trim(),
+        status: dramaStatus,
+        memo: dramaMemo.trim(),
+        updatedDate: dramaUpdatedDate || today,
+        createdAt: new Date().toISOString(),
+      },
+      ...current,
+    ]);
+    setDramaTitle("");
+    setDramaSeason("");
+    setDramaCurrentEpisode("");
+    setDramaTotalEpisodes("");
+    setDramaService("");
+    setDramaStatus("watching");
+    setDramaMemo("");
+    setDramaUpdatedDate(today);
+  }
+
   function updateBook(id: string, patch: Partial<ReadingLog>) {
     setReadingLogs((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   }
@@ -1536,16 +1634,34 @@ function MediaLogApp() {
     setMovieLogs((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   }
 
+  function updateDrama(id: string, patch: Partial<DramaLog>) {
+    setDramaLogs((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  const dramaStatusLabel: Record<DramaStatus, string> = {
+    watching: "視聴中",
+    paused: "保留",
+    finished: "完走",
+  };
+
+  function getDramaProgressText(item: DramaLog) {
+    const season = item.season ? `${item.season} ` : "";
+    const current = item.currentEpisode ? `${item.currentEpisode}話` : "話数未入力";
+    const total = item.totalEpisodes ? ` / 全${item.totalEpisodes}話` : "";
+    return `${season}${current}${total}`;
+  }
+
   return (
     <section className="media-log">
       <section className="media-hero">
         <div>
-          <p className="eyebrow">Books & movies</p>
-          <h2>読んだ気持ち、観た余韻を残す</h2>
+          <p className="eyebrow">Books, movies & dramas</p>
+          <h2>読んだ気持ち、観た作品、ドラマの進み具合を残す</h2>
         </div>
         <div className="media-counts" aria-label="記録数">
           <span>本 {readingLogs.length}</span>
           <span>映画 {movieLogs.length}</span>
+          <span>ドラマ {dramaLogs.length}</span>
         </div>
       </section>
 
@@ -1564,6 +1680,7 @@ function MediaLogApp() {
             <select value={simpleKind} onChange={(event) => setSimpleKind(event.target.value as SimpleMediaKind)}>
               <option value="book">本</option>
               <option value="movie">映画</option>
+              <option value="drama">ドラマ</option>
             </select>
           </label>
           <label className="field">
@@ -1587,7 +1704,7 @@ function MediaLogApp() {
             sortedSimpleLogs.map((item) => (
               <article className="simple-media-card" key={item.id}>
                 <div className="simple-media-head">
-                  <span className={item.kind === "book" ? "media-kind book" : "media-kind movie"}>{item.kind === "book" ? "本" : "映画"}</span>
+                  <span className={`media-kind ${item.kind}`}>{item.kind === "book" ? "本" : item.kind === "movie" ? "映画" : "ドラマ"}</span>
                   <div>
                     <strong>{item.title}</strong>
                     <small>{item.date ? formatDate(item.date) : "日付未入力"}</small>
@@ -1609,6 +1726,9 @@ function MediaLogApp() {
         </button>
         <button className={activeTab === "movies" ? "active" : ""} type="button" onClick={() => setActiveTab("movies")}>
           映画ログ
+        </button>
+        <button className={activeTab === "dramas" ? "active" : ""} type="button" onClick={() => setActiveTab("dramas")}>
+          ドラマログ
         </button>
       </div>
 
@@ -1687,7 +1807,7 @@ function MediaLogApp() {
             )}
           </section>
         </>
-      ) : (
+      ) : activeTab === "movies" ? (
         <>
           <form className="media-form" onSubmit={addMovie}>
             <label className="field">
@@ -1755,6 +1875,114 @@ function MediaLogApp() {
                     <input type="range" min="1" max="5" value={item.rewatchScore} onChange={(event) => updateMovie(item.id, { rewatchScore: Number(event.target.value) })} aria-label="もう一度観たい度" />
                   </div>
                   <textarea value={item.memo} onChange={(event) => updateMovie(item.id, { memo: event.target.value })} placeholder="感想メモ" />
+                </article>
+              ))
+            )}
+          </section>
+        </>
+      ) : (
+        <>
+          <section className="media-stats">
+            <Stat label="視聴中" value={`${dramaStats.watching}本`} />
+            <Stat label="保留" value={`${dramaStats.paused}本`} />
+            <Stat label="完走" value={`${dramaStats.finished}本`} />
+          </section>
+
+          <form className="media-form" onSubmit={addDrama}>
+            <label className="field">
+              <span>タイトル</span>
+              <input value={dramaTitle} onChange={(event) => setDramaTitle(event.target.value)} placeholder="ドラマのタイトル" />
+            </label>
+            <label className="field">
+              <span>シーズン</span>
+              <input value={dramaSeason} onChange={(event) => setDramaSeason(event.target.value)} placeholder="例: S1、シーズン2" />
+            </label>
+            <label className="field">
+              <span>今どこまで</span>
+              <input inputMode="numeric" value={dramaCurrentEpisode} onChange={(event) => setDramaCurrentEpisode(event.target.value)} placeholder="例: 5" />
+            </label>
+            <label className="field">
+              <span>全話数</span>
+              <input inputMode="numeric" value={dramaTotalEpisodes} onChange={(event) => setDramaTotalEpisodes(event.target.value)} placeholder="例: 10" />
+            </label>
+            <label className="field">
+              <span>状態</span>
+              <select value={dramaStatus} onChange={(event) => setDramaStatus(event.target.value as DramaStatus)}>
+                <option value="watching">視聴中</option>
+                <option value="paused">保留</option>
+                <option value="finished">完走</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>サービス</span>
+              <input value={dramaService} onChange={(event) => setDramaService(event.target.value)} placeholder="例: Netflix、U-NEXT" />
+            </label>
+            <label className="field">
+              <span>更新日</span>
+              <input type="date" value={dramaUpdatedDate} onChange={(event) => setDramaUpdatedDate(event.target.value)} />
+            </label>
+            <label className="field media-wide">
+              <span>メモ</span>
+              <textarea value={dramaMemo} onChange={(event) => setDramaMemo(event.target.value)} placeholder="次に見る話、気になる人物、忘れたくない展開など" />
+            </label>
+            <button className="primary-button full media-wide" type="submit">
+              <Plus size={18} />
+              ドラマログを追加
+            </button>
+          </form>
+
+          <section className="media-list" aria-label="ドラマログ一覧">
+            {sortedDramas.length === 0 ? (
+              <Empty text="ドラマログはまだありません。" />
+            ) : (
+              sortedDramas.map((item) => (
+                <article className="media-card drama-card" key={item.id}>
+                  <div className="media-card-head">
+                    <Tv size={19} />
+                    <div>
+                      <input value={item.title} onChange={(event) => updateDrama(item.id, { title: event.target.value })} aria-label="タイトル" />
+                      <small>{getDramaProgressText(item)}</small>
+                    </div>
+                    <button className="icon-button danger" type="button" onClick={() => setDramaLogs((current) => current.filter((log) => log.id !== item.id))} aria-label="削除">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <div className="media-card-grid">
+                    <label>
+                      <span>状態</span>
+                      <select value={item.status} onChange={(event) => updateDrama(item.id, { status: event.target.value as DramaStatus })}>
+                        <option value="watching">視聴中</option>
+                        <option value="paused">保留</option>
+                        <option value="finished">完走</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>シーズン</span>
+                      <input value={item.season} onChange={(event) => updateDrama(item.id, { season: event.target.value })} placeholder="S1" />
+                    </label>
+                    <label>
+                      <span>今どこまで</span>
+                      <input inputMode="numeric" value={item.currentEpisode} onChange={(event) => updateDrama(item.id, { currentEpisode: event.target.value })} placeholder="5" />
+                    </label>
+                    <label>
+                      <span>全話数</span>
+                      <input inputMode="numeric" value={item.totalEpisodes} onChange={(event) => updateDrama(item.id, { totalEpisodes: event.target.value })} placeholder="10" />
+                    </label>
+                    <label>
+                      <span>サービス</span>
+                      <input value={item.service} onChange={(event) => updateDrama(item.id, { service: event.target.value })} placeholder="サービス" />
+                    </label>
+                    <label>
+                      <span>更新日</span>
+                      <input type="date" value={item.updatedDate} onChange={(event) => updateDrama(item.id, { updatedDate: event.target.value })} />
+                    </label>
+                  </div>
+                  <div className="drama-progress">
+                    <strong>{dramaStatusLabel[item.status]}</strong>
+                    <span>{getDramaProgressText(item)}</span>
+                    {item.service ? <span>{item.service}</span> : null}
+                  </div>
+                  <textarea value={item.memo} onChange={(event) => updateDrama(item.id, { memo: event.target.value })} placeholder="メモ" />
                 </article>
               ))
             )}
@@ -2064,18 +2292,29 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function LogCard({ log, onDelete }: { log: RecoveryLog; onDelete: () => void }) {
+  const fields = [
+    ["今日のひとこと", log.todayWord],
+    ["今の気分", log.currentMood || log.feelingNote],
+    ["崩れそうだった場面", log.almostCollapsedScene],
+    ["役に立ったもの", log.helpfulThing || log.recoveryTrigger],
+    ["戻れたこと", log.returnedThing || log.doneOneThing],
+  ].filter(([, text]) => text);
+
   return (
     <article className="log-card">
       <div className="log-head">
         <strong>
-          {formatDate(log.date)} / {moodLabel[log.status]}
+          {formatDate(log.date)} / {nightStateLabel[log.nightState] || (log.status ? moodLabel[log.status] : "記録")}
         </strong>
         <button className="icon-button danger" type="button" onClick={onDelete}>
           <Trash2 size={16} />
         </button>
       </div>
-      {[log.bodyNote, log.feelingNote, log.doneOneThing, log.recoveryTrigger, log.todayWord].filter(Boolean).map((text, index) => (
-        <p key={index}>{text}</p>
+      {fields.map(([label, text]) => (
+        <p key={label}>
+          <strong>{label}</strong>
+          {text}
+        </p>
       ))}
     </article>
   );
