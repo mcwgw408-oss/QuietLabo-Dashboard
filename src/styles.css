@@ -509,6 +509,29 @@ select:focus {
   background: #fffefa;
 }
 
+.cycle-log .check-card span {
+  font-size: 0.86rem;
+}
+
+.cycle-dates {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cycle-dates label {
+  min-height: auto;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.cycle-card p strong {
+  display: block;
+  margin-bottom: 3px;
+  color: #2f4337;
+  font-size: 0.8rem;
+}
+
 .not-now-card {
   grid-template-columns: 36px minmax(0, 1fr);
   align-items: start;

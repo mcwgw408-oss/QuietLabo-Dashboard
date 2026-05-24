@@ -22,7 +22,6 @@ import {
   Search,
   Save,
   ShoppingBasket,
-  Shuffle,
   Sparkles,
   Star,
   Trash2,
@@ -31,14 +30,11 @@ import {
 } from "lucide-react";
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 
-type View = "home" | "tasks" | "recovery" | "triggerDb" | "notNow" | "sakuraSleep" | "state" | "signs" | "library" | "roulette" | "shopping" | "visitMemo" | "mediaLog";
+type View = "home" | "tasks" | "recovery" | "triggerDb" | "notNow" | "sakuraSleep" | "cycleLog" | "signs" | "library" | "shopping" | "visitMemo" | "mediaLog";
 type TaskStatus = "todo" | "doing" | "done";
 type TaskPriority = "low" | "medium" | "high";
 type MoodStatus = "stable" | "uneasy" | "tired" | "slipping" | "recovering";
 type NightState = "calm" | "okay" | "hard" | "recovered";
-type Energy = "low" | "middle" | "high";
-type Mind = "calm" | "uneasy" | "overloaded";
-type Need = "rest" | "light" | "connect";
 type SignId = "sleep" | "body" | "thoughts" | "noise" | "messages" | "food" | "irritation" | "isolation";
 type CategoryId = "staple" | "side" | "drink" | "daily" | "heavy" | "treat";
 type TriggerSpeed = "fast" | "medium" | "slow";
@@ -50,6 +46,10 @@ type SleepPlace = "futon" | "chair" | "floor" | "other";
 type FlashbackStatus = "none" | "little" | "yes";
 type WakeFeeling = "heavy" | "blank" | "okay" | "clear";
 type SafetyFeeling = "low" | "middle" | "high";
+type CyclePmsLevel = "none" | "little" | "strong" | "unknown";
+type CycleEmotion = "anxiety" | "irritation" | "tearful" | "rushed" | "racingThoughts" | "foggy";
+type CycleSymptom = "cramps" | "headache" | "sleepy" | "fatigue" | "nausea" | "backPain" | "appetite";
+type CycleActivityImpact = "noteEasy" | "noteHard" | "outingEasy" | "outingHard" | "aiWork" | "passiveOk" | "restFirst";
 
 type Task = {
   id: string;
@@ -114,12 +114,23 @@ type SakuraSleepLog = {
   createdAt: string;
 };
 
-type BranchState = { energy: Energy; mind: Mind; need: Need };
+type CycleBodyLog = {
+  id: string;
+  startDate: string;
+  endDate: string;
+  cycleMemo: string;
+  pmsLevel: CyclePmsLevel;
+  emotions: CycleEmotion[];
+  symptoms: CycleSymptom[];
+  activityImpacts: CycleActivityImpact[];
+  signRelationMemo: string;
+  shortMemo: string;
+  createdAt: string;
+};
+
 type SignCheck = { id: string; date: string; checked: SignId[]; note: string; createdAt: string };
 type LibraryMode = "emergency" | "night" | "morning" | "uneasy" | "tired";
 type LibraryEntry = { id: string; title: string; body: string; tag: string; favorite?: boolean; modes?: LibraryMode[]; custom?: boolean };
-type RouletteAction = { id: string; text: string; category: string; favorite?: boolean; custom?: boolean };
-type RouletteHistory = { id: string; text: string; status: "drawn" | "done" | "skipped"; createdAt: string };
 
 type ShoppingItem = {
   id: string;
@@ -208,11 +219,9 @@ const RECOVERY_STORAGE_KEY = "notion-recovery-log-v1";
 const RECOVERY_TRIGGER_STORAGE_KEY = "recovery-trigger-db-v1";
 const NOT_NOW_STORAGE_KEY = "not-now-list-v1";
 const SAKURA_SLEEP_STORAGE_KEY = "sakura-sleep-log-v1";
-const BRANCH_STORAGE_KEY = "state-branch-ui-v1";
+const CYCLE_BODY_LOG_STORAGE_KEY = "cycle-body-log-v1";
 const SIGNS_STORAGE_KEY = "early-sign-checks-v1";
 const LIBRARY_STORAGE_KEY = "comfort-library-custom-v1";
-const ROULETTE_ACTIONS_STORAGE_KEY = "today-roulette-actions-v1";
-const ROULETTE_HISTORY_STORAGE_KEY = "today-roulette-history-v1";
 const SHOPPING_STORAGE_KEY = "shopping-list-mobile-v1";
 const VISIT_MEMO_STORAGE_KEY = "visit-nursing-medical-memo-v1";
 const READING_LOG_STORAGE_KEY = "reading-log-mobile-v1";
@@ -229,10 +238,9 @@ const menuItems: Array<{ view: Exclude<View, "home">; title: string; description
   { view: "triggerDb", title: "回復トリガーDB", description: "効いた回復策の条件をためる", icon: Clipboard },
   { view: "notNow", title: "今はやらないリスト", description: "禁止ではなく、今日は保留にする", icon: ClipboardCheck },
   { view: "sakuraSleep", title: "睡眠ログ さくら版", description: "寝方、場所、起床感、安心感を残す", icon: Moon },
-  { view: "state", title: "今の状態 分岐UI", description: "今の状態から次の一手を選ぶ", icon: Sparkles },
+  { view: "cycleLog", title: "周期・体調ログ", description: "PMS/生理と回復、睡眠、感情、活動量のつながりを見る", icon: CalendarDays },
   { view: "signs", title: "崩れ始めサイン チェックUI", description: "早めのサインを拾って守りを固める", icon: ClipboardCheck },
   { view: "library", title: "安心文庫ビューア", description: "安心文をタグで保存して読み返す", icon: BookOpen },
-  { view: "roulette", title: "今日やることルーレット", description: "迷った時に小さな行動を1つ選ぶ", icon: Shuffle },
   { view: "shopping", title: "買い物リスト", description: "買い忘れを減らす片手用リスト", icon: ShoppingBasket },
   { view: "visitMemo", title: "訪看・診察メモ", description: "毎日の記録をコピー用に整える", icon: NotebookPen },
   { view: "mediaLog", title: "読書・漫画・映画・ドラマログ", description: "本、漫画、映画、ドラマの進み具合と感想を残す", icon: Film },
@@ -278,6 +286,37 @@ const sleepPlaceLabel = Object.fromEntries(sleepPlaceOptions) as Record<SleepPla
 const flashbackLabel = Object.fromEntries(flashbackOptions) as Record<FlashbackStatus, string>;
 const wakeFeelingLabel = Object.fromEntries(wakeFeelingOptions) as Record<WakeFeeling, string>;
 const safetyFeelingLabel = Object.fromEntries(safetyFeelingOptions) as Record<SafetyFeeling, string>;
+const cyclePmsOptions: Array<[CyclePmsLevel, string]> = [["unknown", "わからない"], ["none", "少ない"], ["little", "少しある"], ["strong", "強め"]];
+const cyclePmsLabel = Object.fromEntries(cyclePmsOptions) as Record<CyclePmsLevel, string>;
+const cycleEmotionOptions: Array<{ id: CycleEmotion; label: string }> = [
+  { id: "anxiety", label: "不安" },
+  { id: "irritation", label: "イライラ" },
+  { id: "tearful", label: "泣きやすい" },
+  { id: "rushed", label: "焦り" },
+  { id: "racingThoughts", label: "思考暴走" },
+  { id: "foggy", label: "ぼーっとする" },
+];
+const cycleSymptomOptions: Array<{ id: CycleSymptom; label: string }> = [
+  { id: "cramps", label: "腹痛" },
+  { id: "headache", label: "頭痛" },
+  { id: "sleepy", label: "眠気" },
+  { id: "fatigue", label: "だるさ" },
+  { id: "nausea", label: "吐き気" },
+  { id: "backPain", label: "腰痛" },
+  { id: "appetite", label: "食欲変化" },
+];
+const cycleActivityOptions: Array<{ id: CycleActivityImpact; label: string }> = [
+  { id: "noteEasy", label: "noteを書きやすい" },
+  { id: "noteHard", label: "noteを書きにくい" },
+  { id: "outingEasy", label: "外出しやすい" },
+  { id: "outingHard", label: "外出しんどい" },
+  { id: "aiWork", label: "AI作業ならできる" },
+  { id: "passiveOk", label: "受動的なことならできる" },
+  { id: "restFirst", label: "休息優先" },
+];
+const cycleEmotionLabel = Object.fromEntries(cycleEmotionOptions.map((item) => [item.id, item.label])) as Record<CycleEmotion, string>;
+const cycleSymptomLabel = Object.fromEntries(cycleSymptomOptions.map((item) => [item.id, item.label])) as Record<CycleSymptom, string>;
+const cycleActivityLabel = Object.fromEntries(cycleActivityOptions.map((item) => [item.id, item.label])) as Record<CycleActivityImpact, string>;
 
 const signOptions: Array<{ id: SignId; label: string; guide: string }> = [
   { id: "sleep", label: "眠りが浅い", guide: "寝る前の刺激を減らして、予定を詰めすぎない。" },
@@ -297,15 +336,6 @@ const defaultLibrary: LibraryEntry[] = [
   { id: "safe", title: "今は安全を先にする", body: "判断や返信よりも、体を置ける場所、飲み物、明るさを整えることを優先していい。", tag: "緊急", favorite: true, modes: ["emergency", "uneasy"] },
   { id: "night", title: "夜は結論を出さない", body: "夜の気持ちは強く見えることがある。メモだけ残して、結論は明日の自分に渡していい。", tag: "夜", modes: ["night", "uneasy"] },
   { id: "morning", title: "朝は小さく始める", body: "起きた瞬間に全部を決めなくていい。水分、光、ひとつの用事からで十分。", tag: "朝", modes: ["morning", "tired"] },
-];
-
-const defaultRouletteActions: RouletteAction[] = [
-  { id: "water", text: "水を飲む", category: "回復" },
-  { id: "breath", text: "深呼吸を4回する", category: "回復" },
-  { id: "log", text: "回復ログを1行書く", category: "記録" },
-  { id: "desk", text: "机の上を1つ片付ける", category: "生活" },
-  { id: "music", text: "好きな音楽を1曲流す", category: "回復" },
-  { id: "task", text: "タスクを1つだけ進める", category: "作業" },
 ];
 
 const shoppingCategories: Array<{ id: CategoryId; label: string; icon: typeof ShoppingBasket; color: string }> = [
@@ -435,10 +465,6 @@ function formatDate(date: string) {
   return new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric", weekday: "short" }).format(new Date(`${date}T00:00:00`));
 }
 
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
-}
-
 export function App() {
   const [view, setView] = useState<View>("home");
   const title = view === "home" ? "ミニアプリ集" : menuItems.find((item) => item.view === view)?.title || "ミニアプリ集";
@@ -477,10 +503,9 @@ export function App() {
             {view === "triggerDb" && <RecoveryTriggerDbApp />}
             {view === "notNow" && <NotNowListApp />}
             {view === "sakuraSleep" && <SakuraSleepLogApp />}
-            {view === "state" && <StateBranchUi />}
+            {view === "cycleLog" && <CycleBodyLogApp />}
             {view === "signs" && <SignsCheckUi />}
             {view === "library" && <ComfortLibrary />}
-            {view === "roulette" && <RouletteApp />}
             {view === "shopping" && <ShoppingListApp />}
             {view === "visitMemo" && <VisitMemoApp />}
             {view === "mediaLog" && <MediaLogApp />}
@@ -1043,20 +1068,184 @@ function SakuraSleepLogApp() {
   );
 }
 
-function StateBranchUi() {
-  const [state, setState] = useState<BranchState>(readStorage<BranchState>(BRANCH_STORAGE_KEY, { energy: "middle", mind: "calm", need: "light" }));
-  useEffect(() => window.localStorage.setItem(BRANCH_STORAGE_KEY, JSON.stringify(state)), [state]);
-  const result = getStateResult(state);
+function CycleBodyLogApp() {
+  const [logs, setLogs] = useState<CycleBodyLog[]>(readStorage<CycleBodyLog[]>(CYCLE_BODY_LOG_STORAGE_KEY, []));
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState("");
+  const [cycleMemo, setCycleMemo] = useState("");
+  const [pmsLevel, setPmsLevel] = useState<CyclePmsLevel>("unknown");
+  const [emotions, setEmotions] = useState<CycleEmotion[]>([]);
+  const [symptoms, setSymptoms] = useState<CycleSymptom[]>([]);
+  const [activityImpacts, setActivityImpacts] = useState<CycleActivityImpact[]>([]);
+  const [signRelationMemo, setSignRelationMemo] = useState("");
+  const [shortMemo, setShortMemo] = useState("");
+
+  useEffect(() => window.localStorage.setItem(CYCLE_BODY_LOG_STORAGE_KEY, JSON.stringify(logs)), [logs]);
+
+  const sortedLogs = [...logs].sort((a, b) => b.startDate.localeCompare(a.startDate) || b.createdAt.localeCompare(a.createdAt));
+  const pmsStrongCount = logs.filter((log) => log.pmsLevel === "strong").length;
+  const restFirstCount = logs.filter((log) => log.activityImpacts.includes("restFirst")).length;
+
+  function toggleEmotion(id: CycleEmotion, checked: boolean) {
+    setEmotions((current) => (checked ? [...current, id] : current.filter((item) => item !== id)));
+  }
+
+  function toggleSymptom(id: CycleSymptom, checked: boolean) {
+    setSymptoms((current) => (checked ? [...current, id] : current.filter((item) => item !== id)));
+  }
+
+  function toggleActivityImpact(id: CycleActivityImpact, checked: boolean) {
+    setActivityImpacts((current) => (checked ? [...current, id] : current.filter((item) => item !== id)));
+  }
+
+  function addLog(event: FormEvent) {
+    event.preventDefault();
+    setLogs((current) => [
+      {
+        id: createId("cycle-body"),
+        startDate: startDate || today,
+        endDate,
+        cycleMemo: cycleMemo.trim(),
+        pmsLevel,
+        emotions,
+        symptoms,
+        activityImpacts,
+        signRelationMemo: signRelationMemo.trim(),
+        shortMemo: shortMemo.trim(),
+        createdAt: new Date().toISOString(),
+      },
+      ...current,
+    ]);
+    setStartDate(today);
+    setEndDate("");
+    setCycleMemo("");
+    setPmsLevel("unknown");
+    setEmotions([]);
+    setSymptoms([]);
+    setActivityImpacts([]);
+    setSignRelationMemo("");
+    setShortMemo("");
+  }
 
   return (
-    <section className="panel">
-      <BranchGroup label="エネルギー" value={state.energy} options={[["low", "低い"], ["middle", "ふつう"], ["high", "高め"]]} onChange={(energy) => setState((current) => ({ ...current, energy }))} />
-      <BranchGroup label="頭と心" value={state.mind} options={[["calm", "落ち着き"], ["uneasy", "不安"], ["overloaded", "過負荷"]]} onChange={(mind) => setState((current) => ({ ...current, mind }))} />
-      <BranchGroup label="今ほしいもの" value={state.need} options={[["rest", "休み"], ["light", "軽い行動"], ["connect", "つながる"]]} onChange={(need) => setState((current) => ({ ...current, need }))} />
-      <div className="result-box">
-        <strong>{result.title}</strong>
-        <p>{result.body}</p>
-        <small>{result.action}</small>
+    <section className="panel two-column cycle-log">
+      <form className="stack" onSubmit={addLog}>
+        <div className="result-box">
+          <strong>周期そのものより、生活への影響を見る</strong>
+          <p>回復状態・睡眠・感情・活動量・崩れ始めサインとのつながりを、軽く残すためのログです。</p>
+        </div>
+        <div className="status-row cycle-dates">
+          <label className="field">
+            <span>開始日</span>
+            <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+          </label>
+          <label className="field">
+            <span>終了日</span>
+            <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+          </label>
+        </div>
+        <TextArea label="周期メモ" value={cycleMemo} onChange={setCycleMemo} />
+        <BranchGroup label="PMSっぽさ" value={pmsLevel} options={cyclePmsOptions} onChange={setPmsLevel} />
+
+        <fieldset className="branch-group">
+          <legend>感情変化</legend>
+          <div className="check-grid">
+            {cycleEmotionOptions.map((item) => (
+              <label className="check-card" key={item.id}>
+                <input type="checkbox" checked={emotions.includes(item.id)} onChange={(event) => toggleEmotion(item.id, event.target.checked)} />
+                <span>{item.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset className="branch-group">
+          <legend>身体症状</legend>
+          <div className="check-grid">
+            {cycleSymptomOptions.map((item) => (
+              <label className="check-card" key={item.id}>
+                <input type="checkbox" checked={symptoms.includes(item.id)} onChange={(event) => toggleSymptom(item.id, event.target.checked)} />
+                <span>{item.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset className="branch-group">
+          <legend>活動への影響</legend>
+          <div className="check-grid">
+            {cycleActivityOptions.map((item) => (
+              <label className="check-card" key={item.id}>
+                <input type="checkbox" checked={activityImpacts.includes(item.id)} onChange={(event) => toggleActivityImpact(item.id, event.target.checked)} />
+                <span>{item.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <TextArea label="崩れ始めサインとの関連メモ" value={signRelationMemo} onChange={setSignRelationMemo} />
+        <TextArea label="一言メモ" value={shortMemo} onChange={setShortMemo} />
+        <button className="primary-button full" type="submit">
+          <Plus size={18} />
+          周期・体調ログを保存
+        </button>
+      </form>
+
+      <div className="stack">
+        <section className="mini-stats trigger-stats">
+          <Stat label="記録数" value={`${logs.length}件`} />
+          <Stat label="PMS強め" value={`${pmsStrongCount}件`} />
+          <Stat label="休息優先" value={`${restFirstCount}件`} />
+        </section>
+        {sortedLogs.length === 0 ? (
+          <Empty text="周期・体調ログはまだありません。" />
+        ) : (
+          sortedLogs.map((log) => {
+            const period = log.endDate ? `${formatDate(log.startDate)} - ${formatDate(log.endDate)}` : `${formatDate(log.startDate)}から`;
+            const emotionLabels = log.emotions.map((item) => cycleEmotionLabel[item]);
+            const symptomLabels = log.symptoms.map((item) => cycleSymptomLabel[item]);
+            const activityLabels = log.activityImpacts.map((item) => cycleActivityLabel[item]);
+
+            return (
+              <article className="sleep-card cycle-card" key={log.id}>
+                <div className="log-head">
+                  <strong>{period}</strong>
+                  <button className="icon-button danger" type="button" onClick={() => setLogs((current) => current.filter((item) => item.id !== log.id))} aria-label="削除">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <div className="trigger-tags">
+                  <span>PMS: {cyclePmsLabel[log.pmsLevel]}</span>
+                  {emotionLabels.map((label) => (
+                    <span key={`emotion-${label}`}>{label}</span>
+                  ))}
+                  {symptomLabels.map((label) => (
+                    <span key={`symptom-${label}`}>{label}</span>
+                  ))}
+                </div>
+                {activityLabels.length > 0 ? (
+                  <p>
+                    <strong>活動への影響</strong>
+                    {activityLabels.join(" / ")}
+                  </p>
+                ) : null}
+                {log.cycleMemo ? (
+                  <p>
+                    <strong>周期メモ</strong>
+                    {log.cycleMemo}
+                  </p>
+                ) : null}
+                {log.signRelationMemo ? (
+                  <p>
+                    <strong>崩れ始めサインとの関連</strong>
+                    {log.signRelationMemo}
+                  </p>
+                ) : null}
+                {log.shortMemo ? <p>{log.shortMemo}</p> : null}
+              </article>
+            );
+          })
+        )}
       </div>
     </section>
   );
@@ -1235,86 +1424,6 @@ function ComfortLibrary() {
             ) : null}
           </article>
         ))}
-      </div>
-    </section>
-  );
-}
-
-function RouletteApp() {
-  const [actions, setActions] = useState<RouletteAction[]>(readStorage<RouletteAction[]>(ROULETTE_ACTIONS_STORAGE_KEY, defaultRouletteActions));
-  const [history, setHistory] = useState<RouletteHistory[]>(readStorage<RouletteHistory[]>(ROULETTE_HISTORY_STORAGE_KEY, []));
-  const [current, setCurrent] = useState<RouletteAction | null>(null);
-  const [newAction, setNewAction] = useState("");
-  const [category, setCategory] = useState("回復");
-  const [favoritesOnly, setFavoritesOnly] = useState(false);
-  useEffect(() => window.localStorage.setItem(ROULETTE_ACTIONS_STORAGE_KEY, JSON.stringify(actions)), [actions]);
-  useEffect(() => window.localStorage.setItem(ROULETTE_HISTORY_STORAGE_KEY, JSON.stringify(history)), [history]);
-  const pool = favoritesOnly ? actions.filter((item) => item.favorite) : actions;
-
-  function draw() {
-    if (pool.length === 0) return;
-    const action = pool[Math.floor(Math.random() * pool.length)];
-    setCurrent(action);
-    setHistory((items) => [{ id: createId("roulette-history"), text: action.text, status: "drawn" as const, createdAt: new Date().toISOString() }, ...items].slice(0, 20));
-  }
-
-  return (
-    <section className="panel two-column">
-      <div className="stack">
-        <div className="roulette-box">
-          <Shuffle size={34} />
-          <strong>{current ? current.text : "ボタンを押すと1つ選びます"}</strong>
-          <small>{current?.category || "迷った時の小さな一手"}</small>
-          <button className="primary-button full" type="button" onClick={draw}>
-            <Shuffle size={18} />
-            まわす
-          </button>
-        </div>
-        <label className="check-card">
-          <input type="checkbox" checked={favoritesOnly} onChange={(event) => setFavoritesOnly(event.target.checked)} />
-          <span>お気に入りだけでまわす</span>
-        </label>
-        <form
-          className="task-form compact"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!newAction.trim()) return;
-            setActions((items) => [{ id: createId("roulette"), text: newAction.trim(), category, custom: true }, ...items]);
-            setNewAction("");
-          }}
-        >
-          <label className="field wide">
-            <span>行動</span>
-            <input value={newAction} onChange={(event) => setNewAction(event.target.value)} placeholder="例: 洗濯物を1つたたむ" />
-          </label>
-          <label className="field">
-            <span>分類</span>
-            <input value={category} onChange={(event) => setCategory(event.target.value)} />
-          </label>
-          <button className="primary-button" type="submit">
-            <Plus size={18} />
-            追加
-          </button>
-        </form>
-      </div>
-      <div className="stack">
-        {actions.map((action) => (
-          <article className="row" key={action.id}>
-            <button className={action.favorite ? "tiny active" : "tiny"} type="button" onClick={() => setActions((items) => items.map((item) => (item.id === action.id ? { ...item, favorite: !item.favorite } : item)))}>
-              ★
-            </button>
-            <p>
-              {action.text}
-              <small>{action.category}</small>
-            </p>
-            {action.custom ? (
-              <button className="icon-button danger" type="button" onClick={() => setActions((items) => items.filter((item) => item.id !== action.id))}>
-                <Trash2 size={16} />
-              </button>
-            ) : null}
-          </article>
-        ))}
-        {history.length > 0 ? <div className="history-line">最新: {history[0].text} ({formatTime(history[0].createdAt)})</div> : null}
       </div>
     </section>
   );
@@ -2306,13 +2415,6 @@ function VisitMemoApp() {
 
 function statusRank(status: TaskStatus) {
   return { doing: 0, todo: 1, done: 2 }[status];
-}
-
-function getStateResult(state: BranchState) {
-  if (state.energy === "low" || state.need === "rest") return { title: "回復を先にする", body: "今日は増やさない日。水分、横になる、通知を減らす、どれか1つで十分です。", action: "おすすめ: 回復ログを書くか、予定を1つ減らす" };
-  if (state.mind === "overloaded") return { title: "刺激を下げる", body: "画面、音、会話量を少し減らして、次の予定を1つだけ残すのがよさそうです。", action: "おすすめ: 10分だけ通知を切る" };
-  if (state.need === "connect") return { title: "短くつながる", body: "長文ではなく、スタンプや一言だけで外との接点を作るのが合っています。", action: "おすすめ: 送る相手を1人だけ選ぶ" };
-  return { title: "小さく進める", body: "今は軽い行動が合いそうです。5分で終わるものを1つだけ選びましょう。", action: "おすすめ: タスク管理から1つ進行中にする" };
 }
 
 function addDays(date: string, days: number) {
