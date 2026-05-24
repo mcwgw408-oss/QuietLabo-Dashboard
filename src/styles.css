@@ -511,8 +511,39 @@ select:focus {
   font-size: 0.86rem;
 }
 
+.pill-check-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(43, 57, 50, 0.12);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fffefa;
+}
+
+.pill-status-check {
+  border: 1px solid rgba(69, 116, 95, 0.18);
+  border-radius: 8px;
+  padding: 10px;
+  background: #f2f7f0;
+}
+
+.pill-status-check .choice-grid {
+  gap: 8px;
+}
+
+.pill-status-check .choice-grid button {
+  min-height: 56px;
+  font-size: 1rem;
+}
+
 .cycle-dates {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cycle-binary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .cycle-dates label {
@@ -1451,6 +1482,7 @@ select:focus {
   .memo-actions,
   .memo-grid,
   .game-time-grid,
+  .cycle-binary-grid,
   .simple-media-form,
   .media-form,
   .media-card-grid {

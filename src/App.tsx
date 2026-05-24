@@ -51,6 +51,10 @@ type CyclePmsLevel = "none" | "little" | "strong" | "unknown";
 type CycleEmotion = "anxiety" | "irritation" | "tearful" | "rushed" | "racingThoughts" | "foggy";
 type CycleSymptom = "cramps" | "headache" | "sleepy" | "fatigue" | "nausea" | "backPain" | "appetite";
 type CycleActivityImpact = "noteEasy" | "noteHard" | "outingEasy" | "outingHard" | "aiWork" | "passiveOk" | "restFirst";
+type PillStatus = "taken" | "notYet" | "missed";
+type PillBodyNote = "nausea" | "headache" | "sleepy" | "moodChange" | "spotting";
+type PmddLevel = "none" | "light" | "medium" | "strong";
+type YesNoStatus = "no" | "yes";
 type GameFatigue = "none" | "little" | "strong";
 type GameSleepiness = "none" | "little" | "strong";
 type GameAfterEffect = "slept" | "worked" | "spacedOut" | "recovered";
@@ -117,6 +121,16 @@ type CycleBodyLog = {
   emotions: CycleEmotion[];
   symptoms: CycleSymptom[];
   activityImpacts: CycleActivityImpact[];
+  pillSheetStartDate?: string;
+  pillStartConditionMemo?: string;
+  pillStatus?: PillStatus;
+  pillTakenTime?: string;
+  pillNumber?: string;
+  pillMissedMemo?: string;
+  pillBodyNotes?: PillBodyNote[];
+  pmddLevel?: PmddLevel;
+  asNeededMedicine?: YesNoStatus;
+  pillFlashback?: YesNoStatus;
   signRelationMemo: string;
   shortMemo: string;
   createdAt: string;
@@ -325,6 +339,20 @@ const cycleActivityOptions: Array<{ id: CycleActivityImpact; label: string }> = 
 const cycleEmotionLabel = Object.fromEntries(cycleEmotionOptions.map((item) => [item.id, item.label])) as Record<CycleEmotion, string>;
 const cycleSymptomLabel = Object.fromEntries(cycleSymptomOptions.map((item) => [item.id, item.label])) as Record<CycleSymptom, string>;
 const cycleActivityLabel = Object.fromEntries(cycleActivityOptions.map((item) => [item.id, item.label])) as Record<CycleActivityImpact, string>;
+const pillStatusOptions: Array<[PillStatus, string]> = [["taken", "飲んだ"], ["notYet", "まだ"], ["missed", "飲み忘れ"]];
+const pillBodyNoteOptions: Array<{ id: PillBodyNote; label: string }> = [
+  { id: "nausea", label: "吐き気" },
+  { id: "headache", label: "頭痛" },
+  { id: "sleepy", label: "眠気" },
+  { id: "moodChange", label: "気分変化" },
+  { id: "spotting", label: "不正出血" },
+];
+const pmddLevelOptions: Array<[PmddLevel, string]> = [["none", "なし"], ["light", "軽い"], ["medium", "中くらい"], ["strong", "強い"]];
+const yesNoOptions: Array<[YesNoStatus, string]> = [["no", "なし"], ["yes", "あり"]];
+const pillStatusLabel = Object.fromEntries(pillStatusOptions) as Record<PillStatus, string>;
+const pillBodyNoteLabel = Object.fromEntries(pillBodyNoteOptions.map((item) => [item.id, item.label])) as Record<PillBodyNote, string>;
+const pmddLevelLabel = Object.fromEntries(pmddLevelOptions) as Record<PmddLevel, string>;
+const yesNoLabel = Object.fromEntries(yesNoOptions) as Record<YesNoStatus, string>;
 const gameFatigueOptions: Array<[GameFatigue, string]> = [["none", "疲れない"], ["little", "少し疲れる"], ["strong", "かなり疲れる"]];
 const gameSleepinessOptions: Array<[GameSleepiness, string]> = [["none", "なし"], ["little", "少し"], ["strong", "強い"]];
 const gameAfterEffectOptions: Array<[GameAfterEffect, string]> = [["slept", "寝た"], ["worked", "作業できた"], ["spacedOut", "ボーッとした"], ["recovered", "完全復活した"]];
@@ -1004,6 +1032,16 @@ function CycleBodyLogApp() {
   const [emotions, setEmotions] = useState<CycleEmotion[]>([]);
   const [symptoms, setSymptoms] = useState<CycleSymptom[]>([]);
   const [activityImpacts, setActivityImpacts] = useState<CycleActivityImpact[]>([]);
+  const [pillSheetStartDate, setPillSheetStartDate] = useState(today);
+  const [pillStartConditionMemo, setPillStartConditionMemo] = useState("生理が来た日に開始");
+  const [pillStatus, setPillStatus] = useState<PillStatus>("notYet");
+  const [pillTakenTime, setPillTakenTime] = useState("");
+  const [pillNumber, setPillNumber] = useState("");
+  const [pillMissedMemo, setPillMissedMemo] = useState("");
+  const [pillBodyNotes, setPillBodyNotes] = useState<PillBodyNote[]>([]);
+  const [pmddLevel, setPmddLevel] = useState<PmddLevel>("none");
+  const [asNeededMedicine, setAsNeededMedicine] = useState<YesNoStatus>("no");
+  const [pillFlashback, setPillFlashback] = useState<YesNoStatus>("no");
   const [signRelationMemo, setSignRelationMemo] = useState("");
   const [shortMemo, setShortMemo] = useState("");
 
@@ -1012,6 +1050,8 @@ function CycleBodyLogApp() {
   const sortedLogs = [...logs].sort((a, b) => b.startDate.localeCompare(a.startDate) || b.createdAt.localeCompare(a.createdAt));
   const pmsStrongCount = logs.filter((log) => log.pmsLevel === "strong").length;
   const restFirstCount = logs.filter((log) => log.activityImpacts.includes("restFirst")).length;
+  const pillTakenCount = logs.filter((log) => log.pillStatus === "taken").length;
+  const pillMissedCount = logs.filter((log) => log.pillStatus === "missed").length;
 
   function toggleEmotion(id: CycleEmotion, checked: boolean) {
     setEmotions((current) => (checked ? [...current, id] : current.filter((item) => item !== id)));
@@ -1023,6 +1063,10 @@ function CycleBodyLogApp() {
 
   function toggleActivityImpact(id: CycleActivityImpact, checked: boolean) {
     setActivityImpacts((current) => (checked ? [...current, id] : current.filter((item) => item !== id)));
+  }
+
+  function togglePillBodyNote(id: PillBodyNote, checked: boolean) {
+    setPillBodyNotes((current) => (checked ? [...current, id] : current.filter((item) => item !== id)));
   }
 
   function addLog(event: FormEvent) {
@@ -1037,6 +1081,16 @@ function CycleBodyLogApp() {
         emotions,
         symptoms,
         activityImpacts,
+        pillSheetStartDate: pillSheetStartDate || today,
+        pillStartConditionMemo: pillStartConditionMemo.trim(),
+        pillStatus,
+        pillTakenTime,
+        pillNumber: pillNumber.trim(),
+        pillMissedMemo: pillMissedMemo.trim(),
+        pillBodyNotes,
+        pmddLevel,
+        asNeededMedicine,
+        pillFlashback,
         signRelationMemo: signRelationMemo.trim(),
         shortMemo: shortMemo.trim(),
         createdAt: new Date().toISOString(),
@@ -1050,6 +1104,16 @@ function CycleBodyLogApp() {
     setEmotions([]);
     setSymptoms([]);
     setActivityImpacts([]);
+    setPillSheetStartDate(today);
+    setPillStartConditionMemo("生理が来た日に開始");
+    setPillStatus("notYet");
+    setPillTakenTime("");
+    setPillNumber("");
+    setPillMissedMemo("");
+    setPillBodyNotes([]);
+    setPmddLevel("none");
+    setAsNeededMedicine("no");
+    setPillFlashback("no");
     setSignRelationMemo("");
     setShortMemo("");
   }
@@ -1059,8 +1123,40 @@ function CycleBodyLogApp() {
       <form className="stack" onSubmit={addLog}>
         <div className="result-box">
           <strong>周期そのものより、生活への影響を見る</strong>
-          <p>回復状態・睡眠・感情・活動量・崩れ始めサインとのつながりを、軽く残すためのログです。</p>
+          <p>PMDD・回復状態・服薬・体調変化を、あとから見返せるように軽く残すログです。</p>
         </div>
+
+        <section className="pill-check-panel">
+          <div className="section-title">
+            <Check size={16} />
+            <h2>ピル服薬チェック</h2>
+          </div>
+          <div className="pill-status-check">
+            <BranchGroup label="今日飲んだか" value={pillStatus} options={pillStatusOptions} onChange={setPillStatus} />
+          </div>
+          <div className="status-row cycle-dates">
+            <label className="field">
+              <span>シート開始日</span>
+              <input type="date" value={pillSheetStartDate} onChange={(event) => setPillSheetStartDate(event.target.value)} />
+            </label>
+            <label className="field">
+              <span>飲んだ時間</span>
+              <input type="time" value={pillTakenTime} onChange={(event) => setPillTakenTime(event.target.value)} onInput={(event) => setPillTakenTime(event.currentTarget.value)} />
+            </label>
+          </div>
+          <div className="status-row cycle-dates">
+            <label className="field">
+              <span>何錠目か</span>
+              <input inputMode="numeric" value={pillNumber} onChange={(event) => setPillNumber(event.target.value)} placeholder="例: 3" />
+            </label>
+            <label className="field">
+              <span>飲み始め条件メモ</span>
+              <input value={pillStartConditionMemo} onChange={(event) => setPillStartConditionMemo(event.target.value)} placeholder="生理が来た日に開始" />
+            </label>
+          </div>
+          <TextArea label="飲み忘れメモ" value={pillMissedMemo} onChange={setPillMissedMemo} />
+        </section>
+
         <div className="status-row cycle-dates">
           <label className="field">
             <span>開始日</span>
@@ -1073,6 +1169,24 @@ function CycleBodyLogApp() {
         </div>
         <TextArea label="周期メモ" value={cycleMemo} onChange={setCycleMemo} />
         <BranchGroup label="PMSっぽさ" value={pmsLevel} options={cyclePmsOptions} onChange={setPmsLevel} />
+        <BranchGroup label="PMDDっぽさ" value={pmddLevel} options={pmddLevelOptions} onChange={setPmddLevel} />
+
+        <fieldset className="branch-group">
+          <legend>体調メモ</legend>
+          <div className="check-grid">
+            {pillBodyNoteOptions.map((item) => (
+              <label className="check-card" key={item.id}>
+                <input type="checkbox" checked={pillBodyNotes.includes(item.id)} onChange={(event) => togglePillBodyNote(item.id, event.target.checked)} />
+                <span>{item.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <div className="cycle-binary-grid">
+          <BranchGroup label="頓服の有無" value={asNeededMedicine} options={yesNoOptions} onChange={setAsNeededMedicine} />
+          <BranchGroup label="フラッシュバックの有無" value={pillFlashback} options={yesNoOptions} onChange={setPillFlashback} />
+        </div>
 
         <fieldset className="branch-group">
           <legend>感情変化</legend>
@@ -1124,6 +1238,11 @@ function CycleBodyLogApp() {
           <Stat label="PMS強め" value={`${pmsStrongCount}件`} />
           <Stat label="休息優先" value={`${restFirstCount}件`} />
         </section>
+        <section className="mini-stats trigger-stats">
+          <Stat label="飲んだ" value={`${pillTakenCount}件`} />
+          <Stat label="飲み忘れ" value={`${pillMissedCount}件`} />
+          <Stat label="服薬チェック" value="localStorage" />
+        </section>
         {sortedLogs.length === 0 ? (
           <Empty text="周期・体調ログはまだありません。" />
         ) : (
@@ -1132,6 +1251,8 @@ function CycleBodyLogApp() {
             const emotionLabels = log.emotions.map((item) => cycleEmotionLabel[item]);
             const symptomLabels = log.symptoms.map((item) => cycleSymptomLabel[item]);
             const activityLabels = log.activityImpacts.map((item) => cycleActivityLabel[item]);
+            const pillStatusText = log.pillStatus ? pillStatusLabel[log.pillStatus] : "未入力";
+            const pillBodyNoteLabels = (log.pillBodyNotes || []).map((item) => pillBodyNoteLabel[item]);
 
             return (
               <article className="sleep-card cycle-card" key={log.id}>
@@ -1142,6 +1263,12 @@ function CycleBodyLogApp() {
                   </button>
                 </div>
                 <div className="trigger-tags">
+                  <span>服薬: {pillStatusText}</span>
+                  {log.pillTakenTime ? <span>服薬時間: {log.pillTakenTime}</span> : null}
+                  {log.pillNumber ? <span>{log.pillNumber}錠目</span> : null}
+                  {log.pmddLevel ? <span>PMDD: {pmddLevelLabel[log.pmddLevel]}</span> : null}
+                  {log.asNeededMedicine ? <span>頓服: {yesNoLabel[log.asNeededMedicine]}</span> : null}
+                  {log.pillFlashback ? <span>フラッシュバック: {yesNoLabel[log.pillFlashback]}</span> : null}
                   <span>PMS: {cyclePmsLabel[log.pmsLevel]}</span>
                   {emotionLabels.map((label) => (
                     <span key={`emotion-${label}`}>{label}</span>
@@ -1149,7 +1276,22 @@ function CycleBodyLogApp() {
                   {symptomLabels.map((label) => (
                     <span key={`symptom-${label}`}>{label}</span>
                   ))}
+                  {pillBodyNoteLabels.map((label) => (
+                    <span key={`pill-body-${label}`}>{label}</span>
+                  ))}
                 </div>
+                {log.pillSheetStartDate || log.pillStartConditionMemo || log.pillMissedMemo ? (
+                  <p>
+                    <strong>ピル服薬チェック</strong>
+                    {[
+                      log.pillSheetStartDate ? `シート開始 ${formatDate(log.pillSheetStartDate)}` : "",
+                      log.pillStartConditionMemo ? `開始条件: ${log.pillStartConditionMemo}` : "",
+                      log.pillMissedMemo ? `飲み忘れ: ${log.pillMissedMemo}` : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" / ")}
+                  </p>
+                ) : null}
                 {activityLabels.length > 0 ? (
                   <p>
                     <strong>活動への影響</strong>
