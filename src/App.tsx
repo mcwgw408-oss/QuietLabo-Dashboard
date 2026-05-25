@@ -1841,6 +1841,7 @@ function MediaLogApp() {
   const [simpleKind, setSimpleKind] = useState<SimpleMediaKind>("book");
   const [simpleMemo, setSimpleMemo] = useState("");
   const [simpleDate, setSimpleDate] = useState(today);
+  const [editingMediaIds, setEditingMediaIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => window.localStorage.setItem(READING_LOG_STORAGE_KEY, JSON.stringify(readingLogs)), [readingLogs]);
   useEffect(() => window.localStorage.setItem(MANGA_LOG_STORAGE_KEY, JSON.stringify(mangaLogs)), [mangaLogs]);
@@ -2003,6 +2004,10 @@ function MediaLogApp() {
     setDramaLogs((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   }
 
+  function toggleMediaEdit(id: string) {
+    setEditingMediaIds((current) => ({ ...current, [id]: !current[id] }));
+  }
+
   const dramaStatusLabel: Record<DramaStatus, string> = {
     watching: "視聴中",
     paused: "保留",
@@ -2128,7 +2133,7 @@ function MediaLogApp() {
               </select>
             </label>
             <label className="field">
-              <span>日付</span>
+              <span>配信日</span>
               <input type="date" value={bookDate} onChange={(event) => setBookDate(event.target.value)} />
             </label>
             <label className="field media-wide">
@@ -2145,35 +2150,56 @@ function MediaLogApp() {
             {sortedBooks.length === 0 ? (
               <Empty text="読書ログはまだありません。" />
             ) : (
-              sortedBooks.map((item) => (
-                <article className="media-card book-card" key={item.id}>
-                  <div className="media-card-head">
-                    <BookOpen size={19} />
-                    <div>
-                      <input value={item.title} onChange={(event) => updateBook(item.id, { title: event.target.value })} aria-label="タイトル" />
-                      <small>{item.author || "作者未入力"}</small>
+              sortedBooks.map((item) => {
+                const isEditing = editingMediaIds[item.id] ?? false;
+                return (
+                  <article className={`media-card book-card ${isEditing ? "is-editing" : ""}`} key={item.id}>
+                    <div className="media-card-head">
+                      <BookOpen size={19} />
+                      <div>
+                        <strong className="media-card-title">{item.title || "タイトル未入力"}</strong>
+                        <small>{item.date ? `配信日: ${formatDate(item.date)}` : "配信日未入力"}</small>
+                      </div>
+                      <div className="media-card-actions">
+                        <button className="text-button neutral compact" type="button" onClick={() => toggleMediaEdit(item.id)}>
+                          <Pencil size={16} />
+                          {isEditing ? "閉じる" : "編集"}
+                        </button>
+                        <button className="icon-button danger" type="button" onClick={() => setReadingLogs((current) => current.filter((log) => log.id !== item.id))} aria-label="削除">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
-                    <button className="icon-button danger" type="button" onClick={() => setReadingLogs((current) => current.filter((log) => log.id !== item.id))} aria-label="削除">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <div className="media-card-grid">
-                    <label>
-                      <span>状態</span>
-                      <select value={item.status} onChange={(event) => updateBook(item.id, { status: event.target.value as BookStatus })}>
-                        <option value="want">読みたい</option>
-                        <option value="reading">読んでる</option>
-                        <option value="finished">読了</option>
-                      </select>
-                    </label>
-                    <label>
-                      <span>日付</span>
-                      <input type="date" value={item.date} onChange={(event) => updateBook(item.id, { date: event.target.value })} />
-                    </label>
-                  </div>
-                  <textarea value={item.memo} onChange={(event) => updateBook(item.id, { memo: event.target.value })} placeholder="感想メモ" />
-                </article>
-              ))
+                    {isEditing ? (
+                      <div className="media-card-details">
+                        <div className="media-card-grid">
+                          <label>
+                            <span>タイトル</span>
+                            <input value={item.title} onChange={(event) => updateBook(item.id, { title: event.target.value })} aria-label="タイトル" />
+                          </label>
+                          <label>
+                            <span>作者</span>
+                            <input value={item.author} onChange={(event) => updateBook(item.id, { author: event.target.value })} placeholder="作者名" />
+                          </label>
+                          <label>
+                            <span>状態</span>
+                            <select value={item.status} onChange={(event) => updateBook(item.id, { status: event.target.value as BookStatus })}>
+                              <option value="want">読みたい</option>
+                              <option value="reading">読んでる</option>
+                              <option value="finished">読了</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>配信日</span>
+                            <input type="date" value={item.date} onChange={(event) => updateBook(item.id, { date: event.target.value })} />
+                          </label>
+                        </div>
+                        <textarea value={item.memo} onChange={(event) => updateBook(item.id, { memo: event.target.value })} placeholder="感想メモ" />
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })
             )}
           </section>
         </>
@@ -2203,7 +2229,7 @@ function MediaLogApp() {
               </select>
             </label>
             <label className="field">
-              <span>日付</span>
+              <span>配信日</span>
               <input type="date" value={mangaDate} onChange={(event) => setMangaDate(event.target.value)} />
             </label>
             <label className="field media-wide">
@@ -2220,35 +2246,56 @@ function MediaLogApp() {
             {sortedManga.length === 0 ? (
               <Empty text="漫画ログはまだありません。" />
             ) : (
-              sortedManga.map((item) => (
-                <article className="media-card manga-card" key={item.id}>
-                  <div className="media-card-head">
-                    <BookOpen size={19} />
-                    <div>
-                      <input value={item.title} onChange={(event) => updateManga(item.id, { title: event.target.value })} aria-label="タイトル" />
-                      <small>{item.author || "作者未入力"}</small>
+              sortedManga.map((item) => {
+                const isEditing = editingMediaIds[item.id] ?? false;
+                return (
+                  <article className={`media-card manga-card ${isEditing ? "is-editing" : ""}`} key={item.id}>
+                    <div className="media-card-head">
+                      <BookOpen size={19} />
+                      <div>
+                        <strong className="media-card-title">{item.title || "タイトル未入力"}</strong>
+                        <small>{item.date ? `配信日: ${formatDate(item.date)}` : "配信日未入力"}</small>
+                      </div>
+                      <div className="media-card-actions">
+                        <button className="text-button neutral compact" type="button" onClick={() => toggleMediaEdit(item.id)}>
+                          <Pencil size={16} />
+                          {isEditing ? "閉じる" : "編集"}
+                        </button>
+                        <button className="icon-button danger" type="button" onClick={() => setMangaLogs((current) => current.filter((log) => log.id !== item.id))} aria-label="削除">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
-                    <button className="icon-button danger" type="button" onClick={() => setMangaLogs((current) => current.filter((log) => log.id !== item.id))} aria-label="削除">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <div className="media-card-grid">
-                    <label>
-                      <span>状態</span>
-                      <select value={item.status} onChange={(event) => updateManga(item.id, { status: event.target.value as BookStatus })}>
-                        <option value="want">読みたい</option>
-                        <option value="reading">読んでる</option>
-                        <option value="finished">読了</option>
-                      </select>
-                    </label>
-                    <label>
-                      <span>日付</span>
-                      <input type="date" value={item.date} onChange={(event) => updateManga(item.id, { date: event.target.value })} />
-                    </label>
-                  </div>
-                  <textarea value={item.memo} onChange={(event) => updateManga(item.id, { memo: event.target.value })} placeholder="感想メモ" />
-                </article>
-              ))
+                    {isEditing ? (
+                      <div className="media-card-details">
+                        <div className="media-card-grid">
+                          <label>
+                            <span>タイトル</span>
+                            <input value={item.title} onChange={(event) => updateManga(item.id, { title: event.target.value })} aria-label="タイトル" />
+                          </label>
+                          <label>
+                            <span>作者</span>
+                            <input value={item.author} onChange={(event) => updateManga(item.id, { author: event.target.value })} placeholder="作者名" />
+                          </label>
+                          <label>
+                            <span>状態</span>
+                            <select value={item.status} onChange={(event) => updateManga(item.id, { status: event.target.value as BookStatus })}>
+                              <option value="want">読みたい</option>
+                              <option value="reading">読んでる</option>
+                              <option value="finished">読了</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>配信日</span>
+                            <input type="date" value={item.date} onChange={(event) => updateManga(item.id, { date: event.target.value })} />
+                          </label>
+                        </div>
+                        <textarea value={item.memo} onChange={(event) => updateManga(item.id, { memo: event.target.value })} placeholder="感想メモ" />
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })
             )}
           </section>
         </>
@@ -2260,7 +2307,7 @@ function MediaLogApp() {
               <input value={movieTitle} onChange={(event) => setMovieTitle(event.target.value)} placeholder="映画のタイトル" />
             </label>
             <label className="field">
-              <span>視聴日</span>
+              <span>配信日</span>
               <input type="date" value={movieDate} onChange={(event) => setMovieDate(event.target.value)} />
             </label>
             <label className="field">
@@ -2291,37 +2338,58 @@ function MediaLogApp() {
             {sortedMovies.length === 0 ? (
               <Empty text="映画ログはまだありません。" />
             ) : (
-              sortedMovies.map((item) => (
-                <article className="media-card movie-card" key={item.id}>
-                  <div className="media-card-head">
-                    <Film size={19} />
-                    <div>
-                      <input value={item.title} onChange={(event) => updateMovie(item.id, { title: event.target.value })} aria-label="タイトル" />
-                      <small>{item.watchedDate ? formatDate(item.watchedDate) : "視聴日未入力"}</small>
+              sortedMovies.map((item) => {
+                const isEditing = editingMediaIds[item.id] ?? false;
+                return (
+                  <article className={`media-card movie-card ${isEditing ? "is-editing" : ""}`} key={item.id}>
+                    <div className="media-card-head">
+                      <Film size={19} />
+                      <div>
+                        <strong className="media-card-title">{item.title || "タイトル未入力"}</strong>
+                        <small>{item.watchedDate ? `配信日: ${formatDate(item.watchedDate)}` : "配信日未入力"}</small>
+                      </div>
+                      <div className="media-card-actions">
+                        <button className="text-button neutral compact" type="button" onClick={() => toggleMediaEdit(item.id)}>
+                          <Pencil size={16} />
+                          {isEditing ? "閉じる" : "編集"}
+                        </button>
+                        <button className="icon-button danger" type="button" onClick={() => setMovieLogs((current) => current.filter((log) => log.id !== item.id))} aria-label="削除">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
-                    <button className="icon-button danger" type="button" onClick={() => setMovieLogs((current) => current.filter((log) => log.id !== item.id))} aria-label="削除">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <div className="media-card-grid">
-                    <label>
-                      <span>視聴日</span>
-                      <input type="date" value={item.watchedDate} onChange={(event) => updateMovie(item.id, { watchedDate: event.target.value })} />
-                    </label>
-                    <label>
-                      <span>気分</span>
-                      <input value={item.mood} onChange={(event) => updateMovie(item.id, { mood: event.target.value })} placeholder="気分" />
-                    </label>
-                  </div>
-                  <div className="rewatch-preview">
-                    {Array.from({ length: 5 }, (_, index) => (
-                      <Star key={index} size={18} fill={index < item.rewatchScore ? "currentColor" : "none"} />
-                    ))}
-                    <input type="range" min="1" max="5" value={item.rewatchScore} onChange={(event) => updateMovie(item.id, { rewatchScore: Number(event.target.value) })} aria-label="もう一度観たい度" />
-                  </div>
-                  <textarea value={item.memo} onChange={(event) => updateMovie(item.id, { memo: event.target.value })} placeholder="感想メモ" />
-                </article>
-              ))
+                    {isEditing ? (
+                      <div className="media-card-details">
+                        <div className="media-card-grid">
+                          <label>
+                            <span>タイトル</span>
+                            <input value={item.title} onChange={(event) => updateMovie(item.id, { title: event.target.value })} aria-label="タイトル" />
+                          </label>
+                          <label>
+                            <span>配信日</span>
+                            <input type="date" value={item.watchedDate} onChange={(event) => updateMovie(item.id, { watchedDate: event.target.value })} />
+                          </label>
+                          <label>
+                            <span>気分</span>
+                            <input value={item.mood} onChange={(event) => updateMovie(item.id, { mood: event.target.value })} placeholder="気分" />
+                          </label>
+                          <label>
+                            <span>もう一度観たい度</span>
+                            <input type="range" min="1" max="5" value={item.rewatchScore} onChange={(event) => updateMovie(item.id, { rewatchScore: Number(event.target.value) })} aria-label="もう一度観たい度" />
+                          </label>
+                        </div>
+                        <div className="rewatch-preview">
+                          {Array.from({ length: 5 }, (_, index) => (
+                            <Star key={index} size={18} fill={index < item.rewatchScore ? "currentColor" : "none"} />
+                          ))}
+                          <strong>{item.rewatchScore}/5</strong>
+                        </div>
+                        <textarea value={item.memo} onChange={(event) => updateMovie(item.id, { memo: event.target.value })} placeholder="感想メモ" />
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })
             )}
           </section>
         </>
@@ -2363,7 +2431,7 @@ function MediaLogApp() {
               <input value={dramaService} onChange={(event) => setDramaService(event.target.value)} placeholder="例: Netflix、U-NEXT" />
             </label>
             <label className="field">
-              <span>更新日</span>
+              <span>配信日</span>
               <input type="date" value={dramaUpdatedDate} onChange={(event) => setDramaUpdatedDate(event.target.value)} />
             </label>
             <label className="field media-wide">
@@ -2380,56 +2448,73 @@ function MediaLogApp() {
             {sortedDramas.length === 0 ? (
               <Empty text="ドラマログはまだありません。" />
             ) : (
-              sortedDramas.map((item) => (
-                <article className="media-card drama-card" key={item.id}>
-                  <div className="media-card-head">
-                    <Tv size={19} />
-                    <div>
-                      <input value={item.title} onChange={(event) => updateDrama(item.id, { title: event.target.value })} aria-label="タイトル" />
-                      <small>{getDramaProgressText(item)}</small>
+              sortedDramas.map((item) => {
+                const isEditing = editingMediaIds[item.id] ?? false;
+                return (
+                  <article className={`media-card drama-card ${isEditing ? "is-editing" : ""}`} key={item.id}>
+                    <div className="media-card-head">
+                      <Tv size={19} />
+                      <div>
+                        <strong className="media-card-title">{item.title || "タイトル未入力"}</strong>
+                        <small>{item.updatedDate ? `配信日: ${formatDate(item.updatedDate)}` : "配信日未入力"}</small>
+                      </div>
+                      <div className="media-card-actions">
+                        <button className="text-button neutral compact" type="button" onClick={() => toggleMediaEdit(item.id)}>
+                          <Pencil size={16} />
+                          {isEditing ? "閉じる" : "編集"}
+                        </button>
+                        <button className="icon-button danger" type="button" onClick={() => setDramaLogs((current) => current.filter((log) => log.id !== item.id))} aria-label="削除">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
-                    <button className="icon-button danger" type="button" onClick={() => setDramaLogs((current) => current.filter((log) => log.id !== item.id))} aria-label="削除">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <div className="media-card-grid">
-                    <label>
-                      <span>状態</span>
-                      <select value={item.status} onChange={(event) => updateDrama(item.id, { status: event.target.value as DramaStatus })}>
-                        <option value="watching">視聴中</option>
-                        <option value="paused">保留</option>
-                        <option value="finished">完走</option>
-                      </select>
-                    </label>
-                    <label>
-                      <span>シーズン</span>
-                      <input value={item.season} onChange={(event) => updateDrama(item.id, { season: event.target.value })} placeholder="S1" />
-                    </label>
-                    <label>
-                      <span>今どこまで</span>
-                      <input inputMode="numeric" value={item.currentEpisode} onChange={(event) => updateDrama(item.id, { currentEpisode: event.target.value })} placeholder="5" />
-                    </label>
-                    <label>
-                      <span>全話数</span>
-                      <input inputMode="numeric" value={item.totalEpisodes} onChange={(event) => updateDrama(item.id, { totalEpisodes: event.target.value })} placeholder="10" />
-                    </label>
-                    <label>
-                      <span>サービス</span>
-                      <input value={item.service} onChange={(event) => updateDrama(item.id, { service: event.target.value })} placeholder="サービス" />
-                    </label>
-                    <label>
-                      <span>更新日</span>
-                      <input type="date" value={item.updatedDate} onChange={(event) => updateDrama(item.id, { updatedDate: event.target.value })} />
-                    </label>
-                  </div>
-                  <div className="drama-progress">
-                    <strong>{dramaStatusLabel[item.status]}</strong>
-                    <span>{getDramaProgressText(item)}</span>
-                    {item.service ? <span>{item.service}</span> : null}
-                  </div>
-                  <textarea value={item.memo} onChange={(event) => updateDrama(item.id, { memo: event.target.value })} placeholder="メモ" />
-                </article>
-              ))
+                    {isEditing ? (
+                      <div className="media-card-details">
+                        <div className="media-card-grid">
+                          <label>
+                            <span>タイトル</span>
+                            <input value={item.title} onChange={(event) => updateDrama(item.id, { title: event.target.value })} aria-label="タイトル" />
+                          </label>
+                          <label>
+                            <span>配信日</span>
+                            <input type="date" value={item.updatedDate} onChange={(event) => updateDrama(item.id, { updatedDate: event.target.value })} />
+                          </label>
+                          <label>
+                            <span>状態</span>
+                            <select value={item.status} onChange={(event) => updateDrama(item.id, { status: event.target.value as DramaStatus })}>
+                              <option value="watching">視聴中</option>
+                              <option value="paused">保留</option>
+                              <option value="finished">完走</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>シーズン</span>
+                            <input value={item.season} onChange={(event) => updateDrama(item.id, { season: event.target.value })} placeholder="S1" />
+                          </label>
+                          <label>
+                            <span>今どこまで</span>
+                            <input inputMode="numeric" value={item.currentEpisode} onChange={(event) => updateDrama(item.id, { currentEpisode: event.target.value })} placeholder="5" />
+                          </label>
+                          <label>
+                            <span>全話数</span>
+                            <input inputMode="numeric" value={item.totalEpisodes} onChange={(event) => updateDrama(item.id, { totalEpisodes: event.target.value })} placeholder="10" />
+                          </label>
+                          <label>
+                            <span>サービス</span>
+                            <input value={item.service} onChange={(event) => updateDrama(item.id, { service: event.target.value })} placeholder="サービス" />
+                          </label>
+                        </div>
+                        <div className="drama-progress">
+                          <strong>{dramaStatusLabel[item.status]}</strong>
+                          <span>{getDramaProgressText(item)}</span>
+                          {item.service ? <span>{item.service}</span> : null}
+                        </div>
+                        <textarea value={item.memo} onChange={(event) => updateDrama(item.id, { memo: event.target.value })} placeholder="メモ" />
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })
             )}
           </section>
         </>

@@ -1393,7 +1393,7 @@ select:focus {
 
 .media-card-head {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 36px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
 }
@@ -1402,13 +1402,14 @@ select:focus {
   color: #45745f;
 }
 
-.media-card-head input {
-  height: 34px;
-  border-color: transparent;
-  background: transparent;
-  padding: 0;
+.media-card-title {
+  display: block;
+  min-width: 0;
+  color: #26332d;
   font-size: 1.04rem;
   font-weight: 850;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .media-card-head small {
@@ -1416,6 +1417,25 @@ select:focus {
   color: #68766e;
   font-size: 0.8rem;
   font-weight: 800;
+}
+
+.media-card-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.media-card-actions .text-button {
+  min-height: 36px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.media-card-details {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid rgba(43, 57, 50, 0.1);
+  padding-top: 10px;
 }
 
 .media-card-grid {
@@ -1487,6 +1507,15 @@ select:focus {
   .media-form,
   .media-card-grid {
     grid-template-columns: 1fr;
+  }
+
+  .media-card-head {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .media-card-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
   }
 
   .simple-media-wide,
