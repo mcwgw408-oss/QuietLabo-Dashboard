@@ -10,12 +10,9 @@ import {
   Crown,
   Dumbbell,
   Film,
-  Gamepad2,
   HeartPulse,
   Home,
-  ListChecks,
   Milk,
-  Moon,
   NotebookPen,
   PackagePlus,
   Pencil,
@@ -31,7 +28,7 @@ import {
 } from "lucide-react";
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 
-type View = "home" | "tasks" | "recovery" | "triggerDb" | "sakuraSleep" | "cycleLog" | "signs" | "library" | "shopping" | "visitMemo" | "mediaLog" | "gameLog";
+type View = "home" | "tasks" | "recovery" | "triggerDb" | "cycleLog" | "signs" | "library" | "shopping" | "visitMemo" | "mediaLog" | "gameLog";
 type TaskStatus = "todo" | "doing" | "done";
 type TaskPriority = "low" | "medium" | "high";
 type MoodStatus = "stable" | "uneasy" | "tired" | "slipping" | "recovering";
@@ -53,6 +50,7 @@ type CycleSymptom = "cramps" | "headache" | "sleepy" | "fatigue" | "nausea" | "b
 type CycleActivityImpact = "noteEasy" | "noteHard" | "outingEasy" | "outingHard" | "aiWork" | "passiveOk" | "restFirst";
 type PillStatus = "taken" | "notYet" | "missed";
 type PillBodyNote = "nausea" | "headache" | "sleepy" | "moodChange" | "spotting";
+type CycleBleedingStatus = "none" | "period" | "spotting" | "unknown";
 type PmddLevel = "none" | "light" | "medium" | "strong";
 type YesNoStatus = "no" | "yes";
 type GameFatigue = "none" | "little" | "strong";
@@ -112,6 +110,8 @@ type SakuraSleepLog = {
   createdAt: string;
 };
 
+type SakuraSleepLogSetter = (value: SakuraSleepLog[] | ((current: SakuraSleepLog[]) => SakuraSleepLog[])) => void;
+
 type CycleBodyLog = {
   id: string;
   startDate: string;
@@ -121,6 +121,7 @@ type CycleBodyLog = {
   emotions: CycleEmotion[];
   symptoms: CycleSymptom[];
   activityImpacts: CycleActivityImpact[];
+  bleedingStatus?: CycleBleedingStatus;
   pillSheetStartDate?: string;
   pillStartConditionMemo?: string;
   pillStatus?: PillStatus;
@@ -257,14 +258,9 @@ const GAME_LOG_STORAGE_KEY = "game-log-mobile-v1";
 const today = toDateInputValue(new Date());
 
 const menuItems: Array<{ view: Exclude<View, "home">; title: string; description: string; icon: typeof Home }> = [
-  { view: "tasks", title: "タスク管理", description: "やること、期限、優先度を整理", icon: ListChecks },
   { view: "visitMemo", title: "訪看・診察メモ", description: "毎日の記録をコピー用に整える", icon: NotebookPen },
   { view: "shopping", title: "買い物リスト", description: "買い忘れを減らす片手用リスト", icon: ShoppingBasket },
-  { view: "mediaLog", title: "読書・漫画・映画・ドラマログ", description: "本、漫画、映画、ドラマの進み具合と感想を残す", icon: Film },
-  { view: "gameLog", title: "ゲームログ", description: "疲労、眠気、集中、回復への影響を観察する", icon: Gamepad2 },
-  { view: "sakuraSleep", title: "睡眠ログ さくら版", description: "寝方、場所、起床感、安心感を残す", icon: Moon },
-  { view: "cycleLog", title: "周期・体調ログ", description: "PMS/生理と回復、睡眠、感情、活動量のつながりを見る", icon: CalendarDays },
-  { view: "recovery", title: "回復ログ", description: "体調と気持ちを短く記録", icon: HeartPulse },
+  { view: "recovery", title: "一言メモ", description: "体調と気持ちを短く記録", icon: HeartPulse },
   { view: "triggerDb", title: "回復トリガーDB", description: "効いた回復策の条件をためる", icon: Clipboard },
   { view: "signs", title: "崩れ始めサイン チェックUI", description: "早めのサインを拾って守りを固める", icon: ClipboardCheck },
   { view: "library", title: "安心文庫ビューア", description: "安心文をタグで保存して読み返す", icon: BookOpen },
@@ -347,10 +343,12 @@ const pillBodyNoteOptions: Array<{ id: PillBodyNote; label: string }> = [
   { id: "moodChange", label: "気分変化" },
   { id: "spotting", label: "不正出血" },
 ];
+const bleedingStatusOptions: Array<[CycleBleedingStatus, string]> = [["none", "なし"], ["period", "生理中"], ["spotting", "少量・不正出血"], ["unknown", "わからない"]];
 const pmddLevelOptions: Array<[PmddLevel, string]> = [["none", "なし"], ["light", "軽い"], ["medium", "中くらい"], ["strong", "強い"]];
 const yesNoOptions: Array<[YesNoStatus, string]> = [["no", "なし"], ["yes", "あり"]];
 const pillStatusLabel = Object.fromEntries(pillStatusOptions) as Record<PillStatus, string>;
 const pillBodyNoteLabel = Object.fromEntries(pillBodyNoteOptions.map((item) => [item.id, item.label])) as Record<PillBodyNote, string>;
+const bleedingStatusLabel = Object.fromEntries(bleedingStatusOptions) as Record<CycleBleedingStatus, string>;
 const pmddLevelLabel = Object.fromEntries(pmddLevelOptions) as Record<PmddLevel, string>;
 const yesNoLabel = Object.fromEntries(yesNoOptions) as Record<YesNoStatus, string>;
 const gameFatigueOptions: Array<[GameFatigue, string]> = [["none", "疲れない"], ["little", "少し疲れる"], ["strong", "かなり疲れる"]];
@@ -543,6 +541,10 @@ export function App() {
   const [view, setView] = useState<View>("home");
   const title = view === "home" ? "ミニアプリ集" : menuItems.find((item) => item.view === view)?.title || "ミニアプリ集";
 
+  useEffect(() => {
+    document.title = `${title} | QuietLabo Dashboard`;
+  }, [title]);
+
   return (
     <main className="app-shell">
       <section className="app-frame">
@@ -575,7 +577,6 @@ export function App() {
             {view === "tasks" && <TaskManager />}
             {view === "recovery" && <RecoveryLogApp />}
             {view === "triggerDb" && <RecoveryTriggerDbApp />}
-            {view === "sakuraSleep" && <SakuraSleepLogApp />}
             {view === "cycleLog" && <CycleBodyLogApp />}
             {view === "signs" && <SignsCheckUi />}
             {view === "library" && <ComfortLibrary />}
@@ -591,16 +592,14 @@ export function App() {
 }
 
 function HomeView({ setView }: { setView: (view: View) => void }) {
-  const tasks = loadTasks();
   const shopping = readStorage<ShoppingItem[]>(SHOPPING_STORAGE_KEY, []);
-  const openTasks = tasks.filter((task) => task.status !== "done").length;
   const shoppingLeft = shopping.filter((item) => item.today && !item.checked).length;
 
   return (
     <>
       <section className="home-summary">
-        <Stat label="未完了タスク" value={`${openTasks}件`} />
         <Stat label="今日の買い物" value={`${shoppingLeft}件`} />
+        <Stat label="アプリ数" value={`${menuItems.length}個`} />
         <Stat label="保存先" value="localStorage" />
       </section>
       <section className="home-grid" aria-label="ホームメニュー">
@@ -767,11 +766,11 @@ function RecoveryLogApp() {
         <TextArea label="戻れたこと" value={returnedThing} onChange={setReturnedThing} />
         <button className="primary-button full" type="submit">
           <Plus size={18} />
-          保存
+          一言メモを保存
         </button>
       </form>
       <div className="stack">
-        {logs.length === 0 ? <Empty text="まだログはありません。" /> : logs.map((log) => <LogCard key={log.id} log={log} onDelete={() => setLogs((current) => current.filter((item) => item.id !== log.id))} />)}
+        {logs.length === 0 ? <Empty text="一言メモはまだありません。" /> : logs.map((log) => <LogCard key={log.id} log={log} onDelete={() => setLogs((current) => current.filter((item) => item.id !== log.id))} />)}
       </div>
     </section>
   );
@@ -921,6 +920,13 @@ function RecoveryTriggerDbApp() {
 
 function SakuraSleepLogApp() {
   const [logs, setLogs] = useState<SakuraSleepLog[]>(readStorage<SakuraSleepLog[]>(SAKURA_SLEEP_STORAGE_KEY, []));
+
+  useEffect(() => window.localStorage.setItem(SAKURA_SLEEP_STORAGE_KEY, JSON.stringify(logs)), [logs]);
+
+  return <SakuraSleepLogPanel logs={logs} setLogs={setLogs} />;
+}
+
+function SakuraSleepLogPanel({ logs, setLogs }: { logs: SakuraSleepLog[]; setLogs: SakuraSleepLogSetter }) {
   const [date, setDate] = useState(today);
   const [mode, setMode] = useState<SleepMode>("passedOut");
   const [place, setPlace] = useState<SleepPlace>("futon");
@@ -928,8 +934,6 @@ function SakuraSleepLogApp() {
   const [wakeFeeling, setWakeFeeling] = useState<WakeFeeling>("blank");
   const [safety, setSafety] = useState<SafetyFeeling>("middle");
   const [memo, setMemo] = useState("");
-
-  useEffect(() => window.localStorage.setItem(SAKURA_SLEEP_STORAGE_KEY, JSON.stringify(logs)), [logs]);
 
   const sortedLogs = [...logs].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
   const passedOutCount = logs.filter((log) => log.mode === "passedOut").length;
@@ -1028,6 +1032,7 @@ function CycleBodyLogApp() {
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState("");
   const [cycleMemo, setCycleMemo] = useState("");
+  const [bleedingStatus, setBleedingStatus] = useState<CycleBleedingStatus>("none");
   const [pmsLevel, setPmsLevel] = useState<CyclePmsLevel>("unknown");
   const [emotions, setEmotions] = useState<CycleEmotion[]>([]);
   const [symptoms, setSymptoms] = useState<CycleSymptom[]>([]);
@@ -1077,6 +1082,7 @@ function CycleBodyLogApp() {
         startDate: startDate || today,
         endDate,
         cycleMemo: cycleMemo.trim(),
+        bleedingStatus,
         pmsLevel,
         emotions,
         symptoms,
@@ -1100,6 +1106,7 @@ function CycleBodyLogApp() {
     setStartDate(today);
     setEndDate("");
     setCycleMemo("");
+    setBleedingStatus("none");
     setPmsLevel("unknown");
     setEmotions([]);
     setSymptoms([]);
@@ -1122,8 +1129,8 @@ function CycleBodyLogApp() {
     <section className="panel two-column cycle-log">
       <form className="stack" onSubmit={addLog}>
         <div className="result-box">
-          <strong>周期そのものより、生活への影響を見る</strong>
-          <p>PMDD・回復状態・服薬・体調変化を、あとから見返せるように軽く残すログです。</p>
+          <strong>生理中でない日も、毎日の体調を見る</strong>
+          <p>出血の有無に関係なく、PMDD・回復状態・服薬・体調変化を軽く残すログです。</p>
         </div>
 
         <section className="pill-check-panel">
@@ -1159,15 +1166,16 @@ function CycleBodyLogApp() {
 
         <div className="status-row cycle-dates">
           <label className="field">
-            <span>開始日</span>
+            <span>記録日</span>
             <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
           </label>
           <label className="field">
-            <span>終了日</span>
+            <span>生理終了日（必要な時だけ）</span>
             <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
           </label>
         </div>
-        <TextArea label="周期メモ" value={cycleMemo} onChange={setCycleMemo} />
+        <BranchGroup label="今日の出血" value={bleedingStatus} options={bleedingStatusOptions} onChange={setBleedingStatus} />
+        <TextArea label="体調・周期メモ" value={cycleMemo} onChange={setCycleMemo} />
         <BranchGroup label="PMSっぽさ" value={pmsLevel} options={cyclePmsOptions} onChange={setPmsLevel} />
         <BranchGroup label="PMDDっぽさ" value={pmddLevel} options={pmddLevelOptions} onChange={setPmddLevel} />
 
@@ -1247,22 +1255,25 @@ function CycleBodyLogApp() {
           <Empty text="周期・体調ログはまだありません。" />
         ) : (
           sortedLogs.map((log) => {
-            const period = log.endDate ? `${formatDate(log.startDate)} - ${formatDate(log.endDate)}` : `${formatDate(log.startDate)}から`;
+            const logDate = formatDate(log.startDate);
             const emotionLabels = log.emotions.map((item) => cycleEmotionLabel[item]);
             const symptomLabels = log.symptoms.map((item) => cycleSymptomLabel[item]);
             const activityLabels = log.activityImpacts.map((item) => cycleActivityLabel[item]);
             const pillStatusText = log.pillStatus ? pillStatusLabel[log.pillStatus] : "未入力";
+            const bleedingStatusText = log.bleedingStatus ? bleedingStatusLabel[log.bleedingStatus] : "未入力";
             const pillBodyNoteLabels = (log.pillBodyNotes || []).map((item) => pillBodyNoteLabel[item]);
 
             return (
               <article className="sleep-card cycle-card" key={log.id}>
                 <div className="log-head">
-                  <strong>{period}</strong>
+                  <strong>{logDate}</strong>
                   <button className="icon-button danger" type="button" onClick={() => setLogs((current) => current.filter((item) => item.id !== log.id))} aria-label="削除">
                     <Trash2 size={16} />
                   </button>
                 </div>
                 <div className="trigger-tags">
+                  <span>出血: {bleedingStatusText}</span>
+                  {log.endDate ? <span>生理終了: {formatDate(log.endDate)}</span> : null}
                   <span>服薬: {pillStatusText}</span>
                   {log.pillTakenTime ? <span>服薬時間: {log.pillTakenTime}</span> : null}
                   {log.pillNumber ? <span>{log.pillNumber}錠目</span> : null}
@@ -1300,7 +1311,7 @@ function CycleBodyLogApp() {
                 ) : null}
                 {log.cycleMemo ? (
                   <p>
-                    <strong>周期メモ</strong>
+                    <strong>体調・周期メモ</strong>
                     {log.cycleMemo}
                   </p>
                 ) : null}
@@ -2525,6 +2536,7 @@ function MediaLogApp() {
 
 function VisitMemoApp() {
   const [memo, setMemo] = useState<VisitMemo>(loadVisitMemo);
+  const [sleepLogs, setSleepLogs] = useState<SakuraSleepLog[]>(readStorage<SakuraSleepLog[]>(SAKURA_SLEEP_STORAGE_KEY, []));
   const [showOutput, setShowOutput] = useState(false);
   const [isEditing, setIsEditing] = useState(() => !hasVisitMemoContent(loadVisitMemo()));
   const [saveStatus, setSaveStatus] = useState("");
@@ -2532,8 +2544,9 @@ function VisitMemoApp() {
   const [copiedSnapshot, setCopiedSnapshot] = useState("");
 
   useEffect(() => window.localStorage.setItem(VISIT_MEMO_STORAGE_KEY, JSON.stringify(memo)), [memo]);
+  useEffect(() => window.localStorage.setItem(SAKURA_SLEEP_STORAGE_KEY, JSON.stringify(sleepLogs)), [sleepLogs]);
 
-  const output = useMemo(() => buildVisitMemoText(memo), [memo]);
+  const output = useMemo(() => buildVisitMemoText(memo, sleepLogs), [memo, sleepLogs]);
 
   function addDay() {
     const lastDate = memo.days[memo.days.length - 1]?.date;
@@ -2624,6 +2637,8 @@ function VisitMemoApp() {
         </button>
       </div>
       <p className="save-status">{saveStatus || (isEditing ? "編集できます。終わったら保存してください。" : "編集ボタンで内容を直せます。")}</p>
+
+      <SakuraSleepLogPanel logs={sleepLogs} setLogs={setSleepLogs} />
 
       <section className="memo-days" aria-label="日付ごとの記録">
         {memo.days.map((day, index) => (
@@ -2743,7 +2758,7 @@ function appendBulletSection(lines: string[], title: string, value: string) {
   lines.push("", title, "", ...bullets);
 }
 
-function buildVisitMemoText(memo: VisitMemo) {
+function buildVisitMemoText(memo: VisitMemo, sleepLogs: SakuraSleepLog[] = []) {
   const lines: string[] = [];
 
   memo.days.forEach((day, index) => {
@@ -2763,7 +2778,26 @@ function buildVisitMemoText(memo: VisitMemo) {
   appendBulletSection(lines, "これだけは忘れずに話したいこと", memo.mustTalk);
   appendBulletSection(lines, "※雑談", memo.chat);
 
+  appendSleepLogSection(lines, sleepLogs);
+
   return lines.join("\n").trim();
+}
+
+function appendSleepLogSection(lines: string[], sleepLogs: SakuraSleepLog[]) {
+  const sortedLogs = [...sleepLogs].sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
+  if (sortedLogs.length === 0) return;
+
+  lines.push("", "睡眠ログ", "");
+  sortedLogs.forEach((log) => {
+    const tags = [
+      sleepModeLabel[log.mode],
+      sleepPlaceLabel[log.place],
+      `フラッシュバック: ${flashbackLabel[log.flashback]}`,
+      `起床感: ${wakeFeelingLabel[log.wakeFeeling]}`,
+      `安心感: ${safetyFeelingLabel[log.safety]}`,
+    ];
+    lines.push(`* ${formatMemoDate(log.date)} ${tags.join(" / ")}${log.memo ? ` / ${log.memo}` : ""}`);
+  });
 }
 
 function SummaryTextArea({ label, value, onChange, onClear, disabled }: { label: string; value: string; onChange: (value: string) => void; onClear: () => void; disabled?: boolean }) {
